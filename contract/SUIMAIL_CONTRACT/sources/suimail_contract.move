@@ -1,9 +1,12 @@
-/*
+
 /// Module: suimail_contract
 module suimail_contract::suimail_contract;
-*/
 
-// For Move coding conventions, see
-// https://docs.sui.io/concepts/sui-move-concepts/conventions
+public struct Profile has key {
+    id: UID,
+    public_key: vector<u8>,
+    encrypted_backup_blob: vector<u8>,
+}
+
 
 
