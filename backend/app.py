@@ -3,14 +3,15 @@ import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from pysui import PysuiConfiguration
 
 # --- Pysui Imports ---
 from pysui.sui.sui_pgql.pgql_sync_txn import SuiTransaction
-from pysui.sui.sui_pgql.pgql_sync_client import SyncGqlClient
-from pysui.sui.sui_pgql.pgql_configs import PysuiConfiguration
-from pysui.sui.sui_pgql.pgql_types import SuiSignature
-from pysui.sui.sui_pgql import pgql_builders as qn
+from pysui import SyncGqlClient
+# from pysui.sui.sui_pgql.pgql_types import SuiSignature
+# from pysui.sui.sui_pgql import pgql_builders as qn
 from pysui.abstracts.client_config import ClientConfiguration
+from pysui.sui.sui_types import SuiSignature
 
 # --- Load Environment Variables ---
 load_dotenv()
