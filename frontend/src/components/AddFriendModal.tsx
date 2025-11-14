@@ -1,5 +1,4 @@
 // web-app/src/components/AddFriendModal.tsx
-
 import { useState } from "react";
 import {
     Button,
@@ -47,7 +46,8 @@ export function AddFriendModal() {
 
     return (
         <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
-            <Dialog.Trigger asChild>
+            {/* Trigger */}
+            <Dialog.Trigger>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button
                         variant="soft"
@@ -66,141 +66,118 @@ export function AddFriendModal() {
                 </motion.div>
             </Dialog.Trigger>
 
-            <Dialog.Portal>
-                <Dialog.Overlay
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0, 0, 0, 0.6)",
-                        backdropFilter: "blur(8px)",
-                    }}
-                />
-
-                <Dialog.Content
-                    style={{
-                        position: "fixed",
-                        top: "50%",
-                        left: "50%",
-                        transform: "translate(-50%, -50%)",
-                        maxWidth: 480,
-                        width: "90vw",
-                        background: "rgba(255, 255, 255, 0.12)",
-                        backdropFilter: "blur(16px)",
-                        border: "1px solid rgba(255, 255, 255, 0.2)",
-                        borderRadius: "16px",
-                        padding: "24px",
-                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
-                    }}
+            {/* Content */}
+            <Dialog.Content
+                style={{
+                    position: "fixed",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    maxWidth: 480,
+                    width: "90vw",
+                    background: "rgba(255, 255, 255, 0.12)",
+                    backdropFilter: "blur(16px)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    borderRadius: "16px",
+                    padding: "24px",
+                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+                }}
+            >
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.2 }}
                 >
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.2 }}
-                    >
+                    <Flex direction="column" gap="4">
+                        {/* Header */}
+                        <Flex justify="between" align="center">
+                            <Dialog.Title style={{ color: "#e0f2fe", fontWeight: 700 }}>
+                                Add New Friend
+                            </Dialog.Title>
+                            <Dialog.Close>
+                                <IconButton size="1" variant="ghost" style={{ color: "#94a3b8" }}>
+                                    <X size={18} />
+                                </IconButton>
+                            </Dialog.Close>
+                        </Flex>
+
+                        <Dialog.Description size="2" style={{ color: "#94a3b8" }}>
+                            Enter their Sui wallet address and a local alias.
+                        </Dialog.Description>
+
+                        {error && (
+                            <Text size="2" style={{ color: "#ef4444" }}>
+                                {error}
+                            </Text>
+                        )}
+
+                        {/* Form Fields */}
                         <Flex direction="column" gap="4">
-                            <Flex justify="between" align="center">
-                                <Dialog.Title style={{ color: "#e0f2fe", fontWeight: 700 }}>
-                                    Add New Friend
-                                </Dialog.Title>
-                                <Dialog.Close asChild>
-                                    <IconButton
-                                        size="1"
-                                        variant="ghost"
-                                        style={{ color: "#94a3b8" }}
-                                    >
-                                        <X size={18} />
-                                    </IconButton>
-                                </Dialog.Close>
-                            </Flex>
-
-                            <Dialog.Description size="2" style={{ color: "#94a3b8" }}>
-                                Enter their Sui wallet address and a local alias.
-                            </Dialog.Description>
-
-                            {error && (
-                                <Text size="2" style={{ color: "#ef4444" }}>
-                                    {error}
+                            <Box>
+                                <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
+                                    Alias
                                 </Text>
-                            )}
+                                <TextField.Root
+                                    placeholder="e.g., Alice"
+                                    value={alias}
+                                    onChange={(e) => setAlias(e.target.value)}
+                                    style={{
+                                        background: "rgba(255, 255, 255, 0.1)",
+                                        border: "1px solid rgba(255, 255, 255, 0.2)",
+                                        color: "white",
+                                    }}
+                                />
+                            </Box>
 
-                            <Flex direction="column" gap="4">
-                                <Box>
-                                    <Text
-                                        as="div"
-                                        size="2"
-                                        weight="bold"
-                                        mb="1"
-                                        style={{ color: "#e0f2fe" }}
-                                    >
-                                        Alias
-                                    </Text>
-                                    <TextField.Root
-                                        placeholder="e.g., Alice"
-                                        value={alias}
-                                        onChange={(e) => setAlias(e.target.value)}
-                                        style={{
-                                            background: "rgba(255, 255, 255, 0.1)",
-                                            border: "1px solid rgba(255, 255, 255, 0.2)",
-                                            color: "white",
-                                        }}
-                                    />
-                                </Box>
+                            <Box>
+                                <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
+                                    Sui Address
+                                </Text>
+                                <TextField.Root
+                                    placeholder="0x..."
+                                    value={address}
+                                    onChange={(e) => setAddress(e.target.value)}
+                                    style={{
+                                        background: "rgba(255, 255, 255, 0.1)",
+                                        border: "1px solid rgba(255, 255, 255, 0.2)",
+                                        color: "white",
+                                        fontFamily: "monospace",
+                                    }}
+                                />
+                            </Box>
+                        </Flex>
 
-                                <Box>
-                                    <Text
-                                        as="div"
-                                        size="2"
-                                        weight="bold"
-                                        mb="1"
-                                        style={{ color: "#e0f2fe" }}
-                                    >
-                                        Sui Address
-                                    </Text>
-                                    <TextField.Root
-                                        placeholder="0x..."
-                                        value={address}
-                                        onChange={(e) => setAddress(e.target.value)}
-                                        style={{
-                                            background: "rgba(255, 255, 255, 0.1)",
-                                            border: "1px solid rgba(255, 255, 255, 0.2)",
-                                            color: "white",
-                                            fontFamily: "monospace",
-                                        }}
-                                    />
-                                </Box>
-                            </Flex>
-
-                            <Flex gap="3" mt="2" justify="end">
-                                <Dialog.Close asChild>
-                                    <Button
-                                        variant="soft"
-                                        size="2"
-                                        style={{
-                                            background: "rgba(255, 255, 255, 0.1)",
-                                            color: "#94a3b8",
-                                        }}
-                                    >
-                                        Cancel
-                                    </Button>
-                                </Dialog.Close>
-
+                        {/* Buttons */}
+                        <Flex gap="3" mt="2" justify="end">
+                            <Dialog.Close>
                                 <Button
-                                    onClick={handleSave}
+                                    variant="soft"
                                     size="2"
                                     style={{
-                                        background: "linear-gradient(135deg, #3b82f6, #10b981)",
-                                        color: "white",
-                                        fontWeight: 600,
-                                        boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+                                        background: "rgba(255, 255, 255, 0.1)",
+                                        color: "#94a3b8",
                                     }}
                                 >
-                                    Save Friend
+                                    Cancel
                                 </Button>
-                            </Flex>
+                            </Dialog.Close>
+
+                            <Button
+                                onClick={handleSave}
+                                size="2"
+                                style={{
+                                    background: "linear-gradient(135deg, #3b82f6, #10b981)",
+                                    color: "white",
+                                    fontWeight: 600,
+                                    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+                                }}
+                            >
+                                Save Friend
+                            </Button>
                         </Flex>
-                    </motion.div>
-                </Dialog.Content>
-            </Dialog.Portal>
+                    </Flex>
+                </motion.div>
+            </Dialog.Content>
         </Dialog.Root>
     );
 }

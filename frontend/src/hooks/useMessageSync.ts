@@ -5,7 +5,34 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { CHAT_ENVELOP_TYPE } from "../utilities/constants";
 import { messageStore } from "../services/messageStore";
 import type { ChatEnvelopFields } from "../utilities/types";
+import {SuiObjectResponse} from "@mysten/sui/client";
 
+
+function extractChatEnvelop(obj: SuiObjectResponse): ChatEnvelopFields | null {
+    // 1. Must be a Move object
+    if (obj.data?.content?.dataType !== "moveObject") return null;
+
+    const f = obj.data.content.fields as any; // raw MoveStruct fields
+
+    // 2. Guard against missing fields (Sui can return partial data)
+    if (
+        typeof f.id?.id !== "string" ||
+        typeof f.msg_blob !== "string" ||
+        typeof f.sender !== "string" ||
+        typeof f.receiver !== "string" ||
+        typeof f.timestamp !== "string"
+    ) {
+        return null;
+    }
+
+    return {
+        id: f.id.id,          // <-- the nested .id.id is the real object ID
+        msg_blob: f.msg_blob,
+        sender: f.sender,
+        receiver: f.receiver,
+        timestamp: f.timestamp,
+    };
+}
 /**
  * Hook to sync blockchain messages with local IndexedDB
  */
@@ -28,6 +55,25 @@ export function useMessageSync(userAddress: string | undefined) {
         if (!messagesData || !userAddress) return;
 
         try {
+            // 1. Extract only valid envelopes
+            const envelopes: ChatEnvelopFields[] = messagesData.data
+                .map(extractChatEnvelop)
+                .filter((m): m is ChatEnvelopFields => m !== null);
+
+            // 2. Persist to IndexedDB (unchanged)
+            for (const env of envelopes) {
+                await messageStore.saveMessage(env, userAddress);
+            }
+
+            console.log(`Synced ${envelopes.length} messages to local database`);
+        } catch (error) {
+            console.error("Failed to sync messages:", error);
+        }
+    }, [messagesData, userAddress, messageStore]);
+    /*const syncMessages = useCallback(async () => {
+        if (!messagesData || !userAddress) return;
+
+        try {
             const messages = messagesData.data
                 .map((obj) => {
                     if (obj.data?.content?.dataType === "moveObject") {
@@ -46,7 +92,7 @@ export function useMessageSync(userAddress: string | undefined) {
         } catch (error) {
             console.error("Failed to sync messages:", error);
         }
-    }, [messagesData, userAddress]);
+    }, [messagesData, userAddress]);*/
 
     // Auto-sync when data changes
     useEffect(() => {
