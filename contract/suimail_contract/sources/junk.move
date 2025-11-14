@@ -1,6 +1,6 @@
 
 /// Module: suimail_contract
-module suimail_contract::suimail_contract;
+module suimail_contract::junk;
 
 use sui::event;
 use sui::table::{Self, Table};
@@ -45,14 +45,14 @@ public struct ProfileCreatedEvent has copy, drop {
 public struct MessageSentEvent has copy, drop {
     sender: address,
     recipient: address,
-    message_key: u64, 
+    message_key: u64,
     message_blob_id: vector<u8>
 }
 
 /// Emitted when a message is deleted
 public struct MessageDeletedEvent has copy, drop {
-    owner: address, 
-    message_key: u64 
+    owner: address,
+    message_key: u64
 }
 
 // --- Init Function ---
@@ -71,7 +71,7 @@ fun init(ctx: &mut TxContext) {
 /// Creates a profile for the user
 public fun create_profile(
     registry: &mut SuiMailRegistry,
-    public_key: vector<u8>, 
+    public_key: vector<u8>,
     ctx: &mut TxContext
 ) {
 
@@ -79,11 +79,11 @@ public fun create_profile(
 
     // Ensure profile does not already exist
     assert!(
-        !table::contains(&registry.keys, sender), 
+        !table::contains(&registry.keys, sender),
         E_PROFILE_ALREADY_EXISTS
     );
 
-   
+
     // Create private profile
     let profile = Profile {
         id: object::new(ctx),
@@ -91,13 +91,13 @@ public fun create_profile(
         owner: sender,
         encrypted_backup_blob: b""
     };
-    
+
     // Add public key to shared registry
-    table::add(&mut registry.keys, sender, public_key); 
+    table::add(&mut registry.keys, sender, public_key);
 
     // Transfer profile privately to owner
     transfer::transfer(profile, sender);
-    
+
     // Emit event
     event::emit(ProfileCreatedEvent {
         owner_address: sender,
@@ -107,13 +107,13 @@ public fun create_profile(
 
 /// Sends a message to a recipient
 public fun send_message(
-    msg_blob_id: vector<u8>, 
-    recipient: address, 
+    msg_blob_id: vector<u8>,
+    recipient: address,
     ctx: &mut TxContext
 ) {
     let sender = tx_context::sender(ctx);
     let timestamp = tx_context::epoch_timestamp_ms(ctx);
-    
+
     let chat = ChatEnvelop {
         id: object::new(ctx),
         msg_blob: msg_blob_id,
@@ -121,7 +121,7 @@ public fun send_message(
         receiver: recipient,
         timestamp
     };
-    
+
     // Emit event before transfer
     event::emit(MessageSentEvent {
         sender,
@@ -129,27 +129,27 @@ public fun send_message(
         message_key: timestamp,
         message_blob_id: msg_blob_id
     });
-    
+
     // Transfer message to recipient
     transfer::transfer(chat, recipient);
 }
 
 /// Deletes a message and emits event
 public fun delete(
-    envelop: ChatEnvelop, 
+    envelop: ChatEnvelop,
     ctx: &TxContext
 ) {
     let sender = tx_context::sender(ctx);
-    
+
     // Security check: only receiver can delete
     assert!(envelop.receiver == sender, 0);
-    
+
     let timestamp = envelop.timestamp;
-    
+
     // Destruct and delete
     let ChatEnvelop { id, msg_blob: _, sender: _, receiver: _, timestamp: _ } = envelop;
     object::delete(id);
-    
+
     // Emit event
     event::emit(MessageDeletedEvent {
         owner: sender,
@@ -164,10 +164,10 @@ public fun update_backup(
     ctx: &TxContext
 ) {
     let sender = tx_context::sender(ctx);
-    
+
     // Security check: only owner can update
     assert!(profile.owner == sender, 0);
-    
+
     profile.encrypted_backup_blob = new_blob_id;
 }
 
