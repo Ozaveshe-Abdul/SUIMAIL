@@ -1,176 +1,205 @@
-// web-app/src/useSuiMail.ts
-import {
-    useCurrentAccount,
-    useSignAndExecuteTransaction,
-    useSignTransaction,
-} from "@mysten/dapp-kit";
+// web-app/src/hooks/useSuiMail.ts
+
+import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { PACKAGE_ID, REGISTRY_ID } from "../utilities/constants";
-import * as crypto from "../utilities/crypto";
-import { Profile } from "../utilities/types";
-
-
-// --- Our Gas Station API Endpoint ---
-const SPONSOR_SERVER_URL = "http://127.0.0.1:5000/sponsor-tx";
+import {
+    REGISTRY_ID,
+    CREATE_PROFILE_FUNCTION,
+    SEND_MESSAGE_FUNCTION,
+    DELETE_MESSAGE_FUNCTION,
+    UPDATE_BACKUP_FUNCTION,
+    GAS_STATION_URL,
+} from "../utilities/constants";
+import {
+    generateEncryptionKeypair,
+    saveEncryptionKeypair,
+    getPublicKeyBytes,
+    encryptMessage,
+} from "../services/encryption";
+import type { Profile } from "../utilities/types";
 
 export function useSuiMail() {
     const account = useCurrentAccount();
-
-    // Hook for USER-PAYS txns (delete, backup)
-    const { mutateAsync: signAndExecute, isPending: isUserPaysPending } =
+    const { mutateAsync: signAndExecuteTransaction, isPending } =
         useSignAndExecuteTransaction();
 
-    // Hook for GAS-LESS txns (send, create)
-    const { mutateAsync: signGaslessTx, isPending: isGaslessPending } =
-        useSignTransaction();
-
-    // ✅ FIX: Combine both loading states from the hooks
-    const isPending = isUserPaysPending || isGaslessPending;
-
-
-
-    // --- 1. SPONSORED: Create Profile ---
+    /**
+     * Create profile (USER PAYS)
+     */
     const createProfile = async (
         onSuccess: (digest: string) => void,
         onError: (error: string) => void
     ) => {
-        if (!account) return onError("Wallet not connected");
-        try {
-            const keys = crypto.generateEncryptionKeypair();
-            crypto.savePrivateKey(keys);
+        if (!account) {
+            onError("Wallet not connected");
+            return;
+        }
 
+        try {
+            // Generate encryption keypair
+            const keypair = generateEncryptionKeypair();
+            const publicKeyBytes = getPublicKeyBytes(keypair);
+
+            // Build transaction
             const txb = new Transaction();
             txb.moveCall({
-                target: `${PACKAGE_ID}::suimail_contract::create_profile`,
+                target: CREATE_PROFILE_FUNCTION,
                 arguments: [
                     txb.object(REGISTRY_ID),
-                    txb.pure(Array.from(keys.getPublicKey().toSuiBytes()), "vector<u8>"),
+                    txb.pure.vector("u8", publicKeyBytes),
                 ],
             });
-            txb.setSender(account.address);
 
-            const signedIntent = await signGaslessTx({ transaction: txb });
+            // Execute with user's wallet (user pays gas)
+            const result = await signAndExecuteTransaction({
+                transaction: txb,
+            });
 
-            const sponsorResponse = await callSponsorServer(
-                signedIntent.bytes,
-                signedIntent.signature,
-                account.address
-            );
-            onSuccess(sponsorResponse.digest);
-        } catch (e: any) {
-            onError(e.message);
+            // Save keypair after successful transaction
+            saveEncryptionKeypair(keypair);
+
+            onSuccess(result.digest);
+        } catch (error: any) {
+            console.error("Create profile error:", error);
+            onError(error.message || "Failed to create profile");
         }
     };
 
-    // --- 2. SPONSORED: Send Message ---
+    /**
+     * Send message (SPONSORED via Gas Station)
+     */
     const sendMessage = async (
         recipientAddress: string,
-        message: string,
+        payloadJson: string,
         onSuccess: (digest: string) => void,
         onError: (error: string) => void
     ) => {
-        if (!account) return onError("Wallet not connected");
-        try {
-            const encryptedMessage = crypto.encryptMessage(message);
-            const messageAsBytes = new TextEncoder().encode(encryptedMessage);
+        if (!account) {
+            onError("Wallet not connected");
+            return;
+        }
 
+        try {
+            // Encrypt the payload
+            const encryptedPayload = encryptMessage(payloadJson);
+            const payloadBytes = Array.from(new TextEncoder().encode(encryptedPayload));
+
+            // Build transaction
             const txb = new Transaction();
             txb.moveCall({
-                target: `${PACKAGE_ID}::suimail_contract::send_message`,
+                target: SEND_MESSAGE_FUNCTION,
                 arguments: [
-                    txb.pure(Array.from(messageAsBytes), "vector<u8>"),
+                    txb.pure.vector("u8", payloadBytes),
                     txb.pure.address(recipientAddress),
                 ],
             });
             txb.setSender(account.address);
 
-            const signedIntent = await signGaslessTx({ transaction: txb });
+            // Serialize for gas station
+            const txBytes = await txb.build({ client: await getSuiClient() });
 
-            const sponsorResponse = await callSponsorServer(
-                signedIntent.bytes,
-                signedIntent.signature,
-                account.address
-            );
-            onSuccess(sponsorResponse.digest);
-        } catch (e: any) {
-            onError(e.message);
+            // Call gas station to sponsor
+            const sponsorResponse = await fetch(`${GAS_STATION_URL}/sponsor-tx`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    txBytes: Array.from(txBytes),
+                    senderAddress: account.address,
+                }),
+            });
+
+            if (!sponsorResponse.ok) {
+                const error = await sponsorResponse.json();
+                throw new Error(error.error || "Gas station sponsorship failed");
+            }
+
+            const { digest } = await sponsorResponse.json();
+            onSuccess(digest);
+        } catch (error: any) {
+            console.error("Send message error:", error);
+            onError(error.message || "Failed to send message");
         }
     };
 
-    // --- 3. USER-PAYS: Delete Message (for Storage Rebate) ---
+    /**
+     * Delete message (USER PAYS - to receive storage rebate)
+     */
     const deleteMessage = async (
-        objectId: string,
+        messageObjectId: string,
         onSuccess: (digest: string) => void,
         onError: (error: string) => void
     ) => {
+        if (!account) {
+            onError("Wallet not connected");
+            return;
+        }
+
         try {
             const txb = new Transaction();
             txb.moveCall({
-                target: `${PACKAGE_ID}::suimail_contract::delete`,
-                arguments: [txb.object(objectId)],
+                target: DELETE_MESSAGE_FUNCTION,
+                arguments: [txb.object(messageObjectId)],
             });
 
-            const result = await signAndExecute({ transaction: txb });
+            const result = await signAndExecuteTransaction({
+                transaction: txb,
+            });
+
             onSuccess(result.digest);
-        } catch (e: any) {
-            onError(e.message);
+        } catch (error: any) {
+            console.error("Delete message error:", error);
+            onError(error.message || "Failed to delete message");
         }
     };
 
-    // --- 4. USER-PAYS: Update Backup ---
+    /**
+     * Update backup blob (USER PAYS)
+     */
     const updateBackup = async (
         profile: Profile,
         backupBlob: string,
         onSuccess: (digest: string) => void,
         onError: (error: string) => void
     ) => {
+        if (!account) {
+            onError("Wallet not connected");
+            return;
+        }
+
         try {
-            const backupAsBytes = new TextEncoder().encode(backupBlob);
+            const backupBytes = Array.from(new TextEncoder().encode(backupBlob));
+
             const txb = new Transaction();
             txb.moveCall({
-                target: `${PACKAGE_ID}::suimail_contract::update_backup`,
+                target: UPDATE_BACKUP_FUNCTION,
                 arguments: [
                     txb.object(profile.id.id),
-                    txb.pure(Array.from(backupAsBytes), "vector<u8>"),
+                    txb.pure.vector("u8", backupBytes),
                 ],
             });
 
-            const result = await signAndExecute({ transaction: txb });
+            const result = await signAndExecuteTransaction({
+                transaction: txb,
+            });
+
             onSuccess(result.digest);
-        } catch (e: any) {
-            onError(e.message);
+        } catch (error: any) {
+            console.error("Update backup error:", error);
+            onError(error.message || "Failed to update backup");
         }
-    };
-
-    // --- HELPER: Call Sponsor Server ---
-    const callSponsorServer = async (
-        txKindB64: string,
-        userSignature: string,
-        userAddress: string
-    ): Promise<{ digest: string }> => {
-        // This helper logic remains unchanged
-        const response = await fetch(`${SPONSOR_SERVER_URL}/sponsor-tx`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                tx_kind_b64: txKindB64,
-                user_signature_b64: userSignature,
-                user_address: userAddress,
-            }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.error || "Failed to sponsor transaction");
-        }
-        return data;
     };
 
     return {
-        isPending, // ✅ This now correctly combines both hook states
+        isPending,
         createProfile,
         sendMessage,
         deleteMessage,
         updateBackup,
     };
+}
+
+// Helper to get Sui client (adjust based on your setup)
+async function getSuiClient() {
+    const { SuiClient } = await import("@mysten/sui/client");
+    return new SuiClient({ url: "https://fullnode.testnet.sui.io:443" });
 }

@@ -1,4 +1,4 @@
-
+/*
 /// Module: suimail_contract
 module suimail_contract::junk;
 
@@ -189,3 +189,4 @@ public fun is_registered(
     table::contains(&registry.keys, user)
 }
 
+*

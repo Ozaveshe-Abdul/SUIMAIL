@@ -1,4 +1,6 @@
 // web-app/src/components/AddFriendModal.tsx
+
+import { useState } from "react";
 import {
     Button,
     Dialog,
@@ -9,49 +11,42 @@ import {
     Box,
 } from "@radix-ui/themes";
 import { motion } from "framer-motion";
-import { useState } from "react";
 import { Plus, X } from "lucide-react";
-import {saveFriendsList} from "../utilities/store.ts";
+import { addFriend, isValidSuiAddress } from "../services/friendsStore";
 
 export function AddFriendModal() {
     const [address, setAddress] = useState("");
     const [alias, setAlias] = useState("");
     const [isOpen, setIsOpen] = useState(false);
-
-    const isValidAddress = (addr: string) =>
-        /^0x[a-fA-F0-9]{64}$/.test(addr.trim());
+    const [error, setError] = useState("");
 
     const handleSave = () => {
+        setError("");
+
         const trimmedAddress = address.trim();
         const trimmedAlias = alias.trim();
 
         if (!trimmedAddress || !trimmedAlias) {
-            alert("Please fill out both fields.");
+            setError("Please fill out both fields");
             return;
         }
 
-        if (!isValidAddress(trimmedAddress)) {
-            alert("Invalid Sui address. Must be 0x + 64 hex characters.");
+        if (!isValidSuiAddress(trimmedAddress)) {
+            setError("Invalid Sui address format (must be 0x + 64 hex chars)");
             return;
         }
 
-        const currentList = JSON.parse(localStorage.getItem("friends") || "{}");
-        const newList = {
-            ...currentList,
-            [trimmedAddress]: trimmedAlias,
-        };
-        saveFriendsList(newList);
+        addFriend(trimmedAddress, trimmedAlias);
 
-        window.dispatchEvent(new Event("friendsUpdated"));
-
+        // Reset and close
         setIsOpen(false);
         setAddress("");
         setAlias("");
+        setError("");
     };
 
     return (
         <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
-            {/* Trigger */}
             <Dialog.Trigger asChild>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button
@@ -71,7 +66,6 @@ export function AddFriendModal() {
                 </motion.div>
             </Dialog.Trigger>
 
-            {/* Portal → Overlay + Content */}
             <Dialog.Portal>
                 <Dialog.Overlay
                     style={{
@@ -79,7 +73,6 @@ export function AddFriendModal() {
                         inset: 0,
                         background: "rgba(0, 0, 0, 0.6)",
                         backdropFilter: "blur(8px)",
-                        animation: "overlayShow 0.2s ease-out",
                     }}
                 />
 
@@ -102,7 +95,6 @@ export function AddFriendModal() {
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
                     >
                         <Flex direction="column" gap="4">
@@ -111,7 +103,11 @@ export function AddFriendModal() {
                                     Add New Friend
                                 </Dialog.Title>
                                 <Dialog.Close asChild>
-                                    <IconButton size="1" variant="ghost" style={{ color: "#94a3b8" }}>
+                                    <IconButton
+                                        size="1"
+                                        variant="ghost"
+                                        style={{ color: "#94a3b8" }}
+                                    >
                                         <X size={18} />
                                     </IconButton>
                                 </Dialog.Close>
@@ -121,14 +117,25 @@ export function AddFriendModal() {
                                 Enter their Sui wallet address and a local alias.
                             </Dialog.Description>
 
+                            {error && (
+                                <Text size="2" style={{ color: "#ef4444" }}>
+                                    {error}
+                                </Text>
+                            )}
+
                             <Flex direction="column" gap="4">
-                                {/* Alias */}
                                 <Box>
-                                    <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
+                                    <Text
+                                        as="div"
+                                        size="2"
+                                        weight="bold"
+                                        mb="1"
+                                        style={{ color: "#e0f2fe" }}
+                                    >
                                         Alias
                                     </Text>
                                     <TextField.Root
-                                        placeholder="e.g., Bob"
+                                        placeholder="e.g., Alice"
                                         value={alias}
                                         onChange={(e) => setAlias(e.target.value)}
                                         style={{
@@ -139,9 +146,14 @@ export function AddFriendModal() {
                                     />
                                 </Box>
 
-                                {/* Address */}
                                 <Box>
-                                    <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
+                                    <Text
+                                        as="div"
+                                        size="2"
+                                        weight="bold"
+                                        mb="1"
+                                        style={{ color: "#e0f2fe" }}
+                                    >
                                         Sui Address
                                     </Text>
                                     <TextField.Root

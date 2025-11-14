@@ -1,103 +1,107 @@
+// contract/sources/suimail_contract.move
 
-/// Module: suimail_contract
 module suimail_contract::suimail_contract;
-
-use sui::event;
 use sui::table::{Self, Table};
+use sui::event;
 
+// --- Error Codes ---
+#[error]
+const E_NOT_AUTHORIZED: vector<u8> = b"Not profile owner";
 
 #[error]
 const E_PROFILE_ALREADY_EXISTS: vector<u8> = b"Profile already exists for this address";
+// ✅ ADD THIS NEW ERROR
+#[error]
+const E_INVALID_PERMISSION: vector<u8> = b"Only profile owner can delete";
+
+
 // --- Structs ---
 
 /// Shared registry mapping addresses to public keys
 public struct SuiMailRegistry has key {
-    id: UID,
-    keys: Table<address, vector<u8>>,
+id: UID,
+keys: Table<address, vector<u8>>,
 }
 
 /// Private user profile
 public struct Profile has key {
-    id: UID,
-    public_key: vector<u8>,
-    owner: address,
-    encrypted_backup_blob: vector<u8>,
+id: UID,
+public_key: vector<u8>,
+owner: address,
+encrypted_backup_blob: vector<u8>,
 }
 
-/// Message wrapper - transferred to recipient
+/// Message envelope - transferred to recipient
 public struct ChatEnvelop has key, store {
-    id: UID,
-    msg_blob: vector<u8>,
-    sender: address,
-    receiver: address,
-    timestamp: u64
+id: UID,
+msg_blob: vector<u8>,
+sender: address,
+receiver: address,
+timestamp: u64,
 }
 
 // --- Events ---
 
-/// Emitted when a new profile is created
 public struct ProfileCreatedEvent has copy, drop {
-    owner_address: address,
-    public_key: vector<u8>,
+owner_address: address,
+public_key: vector<u8>,
 }
 
-/// Emitted when a message is sent
 public struct MessageSentEvent has copy, drop {
-    sender: address,
-    recipient: address,
-    message_key: u64, 
-    message_blob_id: vector<u8>
+sender: address,
+recipient: address,
+timestamp: u64,
 }
 
-/// Emitted when a message is deleted
 public struct MessageDeletedEvent has copy, drop {
-    owner: address, 
-    message_key: u64 
+owner: address,
+message_id: address,
+}
+
+
+public struct ProfileDeletedEvent has copy, drop {
+    owner_address: address,
 }
 
 // --- Init Function ---
 
-/// Called once when the module is published
 fun init(ctx: &mut TxContext) {
     let registry = SuiMailRegistry {
         id: object::new(ctx),
-        keys: table::new(ctx)
+        keys: table::new(ctx),
     };
     transfer::share_object(registry);
 }
 
 // --- Entry Functions ---
 
-/// Creates a profile for the user
 public fun create_profile(
     registry: &mut SuiMailRegistry,
-    public_key: vector<u8>, 
+    public_key: vector<u8>,
     ctx: &mut TxContext
 ) {
-
     let sender = ctx.sender();
 
     // Ensure profile does not already exist
     assert!(
-        !table::contains(&registry.keys, sender), 
+        !table::contains(&registry.keys, sender),
         E_PROFILE_ALREADY_EXISTS
     );
 
-   
     // Create private profile
     let profile = Profile {
         id: object::new(ctx),
         public_key,
         owner: sender,
-        encrypted_backup_blob: b""
+        encrypted_backup_blob: vector::empty(),
     };
-    
+
     // Add public key to shared registry
-    table::add(&mut registry.keys, sender, public_key); 
+    table::add(&mut registry.keys, sender, public_key);
 
     // Transfer profile privately to owner
     transfer::transfer(profile, sender);
-    
+
     // Emit event
     event::emit(ProfileCreatedEvent {
         owner_address: sender,
@@ -105,75 +109,93 @@ public fun create_profile(
     });
 }
 
-/// Sends a message to a recipient
 public fun send_message(
-    msg_blob_id: vector<u8>, 
-    recipient: address, 
+    msg_blob: vector<u8>,
+    recipient: address,
     ctx: &mut TxContext
 ) {
-    let sender = tx_context::sender(ctx);
-    let timestamp = tx_context::epoch_timestamp_ms(ctx);
-    
-    let chat = ChatEnvelop {
+    let sender = ctx.sender();
+    let timestamp = ctx.epoch_timestamp_ms();
+
+    let envelope = ChatEnvelop {
         id: object::new(ctx),
-        msg_blob: msg_blob_id,
+        msg_blob,
         sender,
         receiver: recipient,
-        timestamp
+        timestamp,
     };
-    
-    // Emit event before transfer
+
+    // Emit event
     event::emit(MessageSentEvent {
         sender,
         recipient,
-        message_key: timestamp,
-        message_blob_id: msg_blob_id
+        timestamp,
     });
-    
-    // Transfer message to recipient
-    transfer::transfer(chat, recipient);
+
+    // Transfer to recipient
+    transfer::transfer(envelope, recipient);
 }
 
-/// Deletes a message and emits event
 public fun delete(
-    envelop: ChatEnvelop, 
+    envelope: ChatEnvelop,
     ctx: &TxContext
 ) {
-    let sender = tx_context::sender(ctx);
-    
-    // Security check: only receiver can delete
-    assert!(envelop.receiver == sender, 0);
-    
-    let timestamp = envelop.timestamp;
-    
+    let sender = ctx.sender();
+
+    // Only receiver can delete
+    assert!(envelope.receiver == sender, E_NOT_AUTHORIZED);
+
+    let message_id = object::uid_to_address(&envelope.id);
+
     // Destruct and delete
-    let ChatEnvelop { id, msg_blob: _, sender: _, receiver: _, timestamp: _ } = envelop;
+    let ChatEnvelop { id, msg_blob: _, sender: _, receiver: _, timestamp: _ } = envelope;
     object::delete(id);
-    
+
     // Emit event
     event::emit(MessageDeletedEvent {
         owner: sender,
-        message_key: timestamp
+        message_id,
     });
 }
 
-/// Updates the encrypted backup blob
-public fun update_backup(
-    profile: &mut Profile,
-    new_blob_id: vector<u8>,
-    ctx: &TxContext
+public fun delete_profile(
+    registry: &mut SuiMailRegistry,
+    profile: Profile, // Pass in the user's *private* Profile object
+    ctx: &mut TxContext
 ) {
     let sender = tx_context::sender(ctx);
-    
-    // Security check: only owner can update
-    assert!(profile.owner == sender, 0);
-    
-    profile.encrypted_backup_blob = new_blob_id;
+
+    // 1. Security check: only the owner can delete their profile
+    assert!(profile.owner == sender, E_INVALID_PERMISSION);
+
+    // 2. Remove their public key from the shared registry
+    let _public_key: vector<u8> = table::remove(&mut registry.keys, sender);
+
+    // 3. Deconstruct and delete the private profile object
+    let Profile { id, .. } = profile;
+    object::delete(id);
+
+    // 4. Emit an event so the indexer knows this user is gone
+    event::emit(ProfileDeletedEvent {
+        owner_address: sender
+    });
 }
 
-// --- View Functions (Optional but useful) ---
+public fun update_backup(
+    profile: &mut Profile,
+    new_blob: vector<u8>,
+    ctx: &TxContext
+) {
+    let sender = ctx.sender();
 
-/// Get public key from registry
+    // Only owner can update
+    assert!(profile.owner == sender, E_NOT_AUTHORIZED);
+
+    profile.encrypted_backup_blob = new_blob;
+}
+
+// --- View Functions ---
+
 public fun get_public_key(
     registry: &SuiMailRegistry,
     user: address
@@ -181,11 +203,12 @@ public fun get_public_key(
     *table::borrow(&registry.keys, user)
 }
 
-/// Check if user has registered
 public fun is_registered(
     registry: &SuiMailRegistry,
     user: address
 ): bool {
     table::contains(&registry.keys, user)
 }
+
+
 

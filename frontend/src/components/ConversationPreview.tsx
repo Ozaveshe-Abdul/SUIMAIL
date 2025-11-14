@@ -1,22 +1,20 @@
 // web-app/src/components/ConversationPreview.tsx
+
 import { Box, Flex, Text, Avatar } from "@radix-ui/themes";
 import { motion } from "framer-motion";
 import { FileText, Image } from "lucide-react";
-import { ChatEnvelopFields } from "../utilities/types.ts";
-import { loadFriendsList } from "../utilities/store.ts";
+import type { StoredMessage } from "../utilities/types";
+import { getFriendAlias } from "../services/friendsStore";
 
 interface ConversationPreviewProps {
-    messages: ChatEnvelopFields[];
+    conversationId: string;
+    messages: StoredMessage[];
     onClick: () => void;
     isSelected?: boolean;
 }
 
-function getFriendAlias(sender: string): string | null {
-    const friends = loadFriendsList();
-    return friends[sender] || null;
-}
-
 export function ConversationPreview({
+                                        conversationId,
                                         messages,
                                         onClick,
                                         isSelected = false,
@@ -24,41 +22,37 @@ export function ConversationPreview({
     if (messages.length === 0) return null;
 
     const latestMessage = messages[0];
-    const sender = latestMessage.sender;
+    const friendAlias = getFriendAlias(conversationId);
+    const displayName =
+        friendAlias || `${conversationId.substring(0, 6)}...${conversationId.slice(-4)}`;
 
-    const friendAlias = getFriendAlias(sender);
-    const displayName = friendAlias || `${sender.substring(0, 6)}...${sender.slice(-4)}`;
-
-    // ────── Decode message preview safely ──────
+    // Extract preview text
     let previewText = "[Encrypted Message]";
     let fileType: "image" | "file" | null = null;
 
-    try {
-        const payload = JSON.parse(
-            new TextDecoder().decode(Uint8Array.from(latestMessage.msg_blob))
-        );
+    if (latestMessage.decryptedPayload) {
+        const { text, file } = latestMessage.decryptedPayload;
 
-        if (payload.text) {
-            previewText = payload.text.length > 40
-                ? payload.text.substring(0, 40) + "..."
-                : payload.text;
+        if (text) {
+            previewText = text.length > 40 ? text.substring(0, 40) + "..." : text;
         }
 
-        if (payload.file) {
-            fileType = payload.file.type.startsWith("image/") ? "image" : "file";
-            const name = payload.file.name;
-            previewText = name.length > 35 ? name.substring(0, 35) + "..." : name;
+        if (file) {
+            fileType = file.type.startsWith("image/") ? "image" : "file";
+            previewText =
+                file.name.length > 35 ? file.name.substring(0, 35) + "..." : file.name;
         }
-    } catch (e) {
-        console.error("Failed to decode preview:", e);
     }
 
-    // ────── Format timestamp ──────
+    // Format timestamp
     const timestamp = new Date(parseInt(latestMessage.timestamp));
     const now = new Date();
     const isToday = timestamp.toDateString() === now.toDateString();
     const timeStr = isToday
-        ? timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+        ? timestamp.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+        })
         : timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
     return (
@@ -85,23 +79,10 @@ export function ConversationPreview({
                         ? "0 4px 12px rgba(59, 130, 246, 0.2)"
                         : "0 1px 4px rgba(0, 0, 0, 0.1)",
                 }}
-                onMouseEnter={(e) => {
-                    if (!isSelected) {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)";
-                        e.currentTarget.style.transform = "translateY(-1px)";
-                    }
-                }}
-                onMouseLeave={(e) => {
-                    if (!isSelected) {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                    }
-                }}
             >
                 <Flex direction="column" gap="2">
                     <Flex justify="between" align="center">
                         <Flex gap="3" align="center">
-                            {/* Gradient Avatar */}
                             <Avatar
                                 size="3"
                                 fallback={displayName[0].toUpperCase()}
@@ -131,7 +112,7 @@ export function ConversationPreview({
                                             opacity: 0.7,
                                         }}
                                     >
-                                        {sender.substring(0, 6)}...{sender.slice(-4)}
+                                        {conversationId.substring(0, 6)}...{conversationId.slice(-4)}
                                     </Text>
                                 )}
                             </Box>
@@ -142,7 +123,6 @@ export function ConversationPreview({
                         </Text>
                     </Flex>
 
-                    {/* Preview */}
                     <Flex gap="2" align="center" style={{ paddingLeft: "48px" }}>
                         {fileType === "image" && (
                             <Image size={14} style={{ color: "#10b981" }} />
