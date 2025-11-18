@@ -3,12 +3,12 @@
 import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import {
+
     REGISTRY_ID,
     CREATE_PROFILE_FUNCTION,
     SEND_MESSAGE_FUNCTION,
     DELETE_MESSAGE_FUNCTION,
     UPDATE_BACKUP_FUNCTION,
-    GAS_STATION_URL,
 } from "../utilities/constants";
 import {
     generateEncryptionKeypair,
@@ -66,7 +66,8 @@ export function useSuiMail() {
     };
 
     /**
-     * Send message (SPONSORED via Gas Station)
+     * Send message (USER PAYS - temporary fix until gas station is working)
+     * TODO: Re-enable sponsorship after gas station is configured
      */
     const sendMessage = async (
         recipientAddress: string,
@@ -93,28 +94,46 @@ export function useSuiMail() {
                     txb.pure.address(recipientAddress),
                 ],
             });
-            txb.setSender(account.address);
 
-            // Serialize for gas station
-            const txBytes = await txb.build({ client: await getSuiClient() });
+            // For now, user pays (comment out gas station code)
+            console.log("Sending message (user pays)...");
 
-            // Call gas station to sponsor
-            const sponsorResponse = await fetch(`${GAS_STATION_URL}/sponsor-tx`, {
+            const result = await signAndExecuteTransaction({
+                transaction: txb,
+            });
+
+            onSuccess(result.digest);
+
+            /* TODO: Re-enable when gas station is properly configured
+            try {
+              // Try gas station first
+              txb.setSender(account.address);
+              const txBytes = await txb.build({ client: await getSuiClient() });
+
+              const sponsorResponse = await fetch(`${GAS_STATION_URL}/sponsor-tx`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    txBytes: Array.from(txBytes),
-                    senderAddress: account.address,
+                  txBytes: Array.from(txBytes),
+                  senderAddress: account.address,
                 }),
-            });
+              });
 
-            if (!sponsorResponse.ok) {
-                const error = await sponsorResponse.json();
-                throw new Error(error.error || "Gas station sponsorship failed");
+              if (!sponsorResponse.ok) {
+                throw new Error("Gas station failed");
+              }
+
+              const { digest } = await sponsorResponse.json();
+              onSuccess(digest);
+            } catch (gasStationError) {
+              // Fallback to user paying
+              console.warn("Gas station failed, user will pay:", gasStationError);
+              const result = await signAndExecuteTransaction({
+                transaction: txb,
+              });
+              onSuccess(result.digest);
             }
-
-            const { digest } = await sponsorResponse.json();
-            onSuccess(digest);
+            */
         } catch (error: any) {
             console.error("Send message error:", error);
             onError(error.message || "Failed to send message");

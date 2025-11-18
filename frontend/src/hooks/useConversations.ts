@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { messageStore } from "../services/messageStore";
+import { loadFriendsList } from "../services/friendsStore";
 import type { StoredMessage } from "../utilities/types";
 
 /**
@@ -16,12 +17,23 @@ export function useConversations() {
     const [isLoading, setIsLoading] = useState(false);
 
     /**
-     * Load all conversations from IndexedDB
+     * Load all conversations from IndexedDB and merge with friends list
      */
     const loadConversations = useCallback(async () => {
         setIsLoading(true);
         try {
             const convs = await messageStore.getAllConversations();
+
+            // Get friends list
+            const friends = loadFriendsList();
+
+            // Add friends who don't have conversations yet
+            for (const friendAddress of Object.keys(friends)) {
+                if (!convs.has(friendAddress)) {
+                    convs.set(friendAddress, []); // Empty conversation
+                }
+            }
+
             setConversations(convs);
         } catch (error) {
             console.error("Failed to load conversations:", error);
@@ -85,6 +97,16 @@ export function useConversations() {
         }
     }, [selectedChat, loadConversation]);
 
+    // Listen for friend updates
+    useEffect(() => {
+        const handleFriendsUpdate = () => {
+            void loadConversations();
+        };
+
+        window.addEventListener("friendsUpdated", handleFriendsUpdate);
+        return () => window.removeEventListener("friendsUpdated", handleFriendsUpdate);
+    }, [loadConversations]);
+
     return {
         conversations,
         selectedChat,
@@ -93,5 +115,6 @@ export function useConversations() {
         loadConversations,
         selectChat,
         deleteLocalMessage,
+        setSelectedChat
     };
 }

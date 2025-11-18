@@ -1,0 +1,28 @@
+/* src/components/ConnectButton.css */
+.connect-button-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.connect-button-wrapper button {
+    /* Your custom style */
+    background: linear-gradient(135deg, #3b82f6, #10b981) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    padding: 12px 24px !important;
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
+    transition: all 0.2s ease !important;
+}
+
+.connect-button-wrapper button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4) !important;
+}
+
+.connect-button-wrapper button:active {
+    transform: translateY(0) !important;
+}

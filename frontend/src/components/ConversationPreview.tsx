@@ -2,7 +2,7 @@
 
 import { Box, Flex, Text, Avatar } from "@radix-ui/themes";
 import { motion } from "framer-motion";
-import { FileText, Image } from "lucide-react";
+import { FileText, Image, MessageCircle } from "lucide-react";
 import type { StoredMessage } from "../utilities/types";
 import { getFriendAlias } from "../services/friendsStore";
 
@@ -19,41 +19,47 @@ export function ConversationPreview({
                                         onClick,
                                         isSelected = false,
                                     }: ConversationPreviewProps) {
-    if (messages.length === 0) return null;
-
-    const latestMessage = messages[0];
     const friendAlias = getFriendAlias(conversationId);
     const displayName =
         friendAlias || `${conversationId.substring(0, 6)}...${conversationId.slice(-4)}`;
 
+    // Handle empty conversations (friend added but no messages yet)
+    const hasMessages = messages.length > 0;
+    const latestMessage = hasMessages ? messages[0] : null;
+
     // Extract preview text
-    let previewText = "[Encrypted Message]";
+    let previewText = "No messages yet";
     let fileType: "image" | "file" | null = null;
+    let timestamp = "";
 
-    if (latestMessage.decryptedPayload) {
-        const { text, file } = latestMessage.decryptedPayload;
+    if (latestMessage) {
+        if (latestMessage.decryptedPayload) {
+            const { text, file } = latestMessage.decryptedPayload;
 
-        if (text) {
-            previewText = text.length > 40 ? text.substring(0, 40) + "..." : text;
+            if (text) {
+                previewText = text.length > 40 ? text.substring(0, 40) + "..." : text;
+            }
+
+            if (file) {
+                fileType = file.type.startsWith("image/") ? "image" : "file";
+                previewText =
+                    file.name.length > 35 ? file.name.substring(0, 35) + "..." : file.name;
+            }
+        } else {
+            previewText = "[Encrypted Message]";
         }
 
-        if (file) {
-            fileType = file.type.startsWith("image/") ? "image" : "file";
-            previewText =
-                file.name.length > 35 ? file.name.substring(0, 35) + "..." : file.name;
-        }
+        // Format timestamp
+        const msgTimestamp = new Date(parseInt(latestMessage.timestamp));
+        const now = new Date();
+        const isToday = msgTimestamp.toDateString() === now.toDateString();
+        timestamp = isToday
+            ? msgTimestamp.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+            })
+            : msgTimestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
-
-    // Format timestamp
-    const timestamp = new Date(parseInt(latestMessage.timestamp));
-    const now = new Date();
-    const isToday = timestamp.toDateString() === now.toDateString();
-    const timeStr = isToday
-        ? timestamp.toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-        })
-        : timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
     return (
         <motion.div
@@ -118,12 +124,17 @@ export function ConversationPreview({
                             </Box>
                         </Flex>
 
-                        <Text size="1" color="gray" style={{ opacity: 0.8 }}>
-                            {timeStr}
-                        </Text>
+                        {timestamp && (
+                            <Text size="1" color="gray" style={{ opacity: 0.8 }}>
+                                {timestamp}
+                            </Text>
+                        )}
                     </Flex>
 
                     <Flex gap="2" align="center" style={{ paddingLeft: "48px" }}>
+                        {!hasMessages && (
+                            <MessageCircle size={14} style={{ color: "#94a3b8", opacity: 0.5 }} />
+                        )}
                         {fileType === "image" && (
                             <Image size={14} style={{ color: "#10b981" }} />
                         )}
@@ -137,8 +148,9 @@ export function ConversationPreview({
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                opacity: 0.9,
+                                opacity: hasMessages ? 0.9 : 0.6,
                                 fontSize: "0.85rem",
+                                fontStyle: hasMessages ? "normal" : "italic",
                             }}
                         >
                             {previewText}
