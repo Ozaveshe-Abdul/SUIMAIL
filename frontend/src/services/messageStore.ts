@@ -1,7 +1,7 @@
 // web-app/src/services/messageStore.ts
 
-import type { ChatEnvelopFields, StoredMessage, MessagePayload } from "../utilities/types";
-import { decryptMessage } from "./encryption";
+import type { ChatEnvelopFields, StoredMessage, MessagePayload } from "../utilities/types.ts";
+import { decryptMessage } from "./encryption.ts";
 
 const DB_NAME = "SuiMailDB";
 const DB_VERSION = 1;

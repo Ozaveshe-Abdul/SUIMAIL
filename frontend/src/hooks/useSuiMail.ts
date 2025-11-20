@@ -9,14 +9,14 @@ import {
     SEND_MESSAGE_FUNCTION,
     DELETE_MESSAGE_FUNCTION,
     UPDATE_BACKUP_FUNCTION,
-} from "../utilities/constants";
+} from "../utilities/constants.ts";
 import {
     generateEncryptionKeypair,
     saveEncryptionKeypair,
     getPublicKeyBytes,
     encryptMessage,
-} from "../services/encryption";
-import type { Profile } from "../utilities/types";
+} from "../services/encryption.ts";
+import type { Profile } from "../utilities/types.ts";
 
 export function useSuiMail() {
     const account = useCurrentAccount();

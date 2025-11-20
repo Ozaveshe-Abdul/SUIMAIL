@@ -3,8 +3,8 @@
 import { Box, Flex, Text, Avatar } from "@radix-ui/themes";
 import { motion } from "framer-motion";
 import { FileText, Image, MessageCircle } from "lucide-react";
-import type { StoredMessage } from "../utilities/types";
-import { getFriendAlias } from "../services/friendsStore";
+import type { StoredMessage } from "../utilities/types.ts";
+import { getFriendAlias } from "../services/friendsStore.ts";
 
 interface ConversationPreviewProps {
     conversationId: string;

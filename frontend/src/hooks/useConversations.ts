@@ -1,9 +1,9 @@
 // web-app/src/hooks/useConversations.ts
 
 import { useState, useEffect, useCallback } from "react";
-import { messageStore } from "../services/messageStore";
-import { loadFriendsList } from "../services/friendsStore";
-import type { StoredMessage } from "../utilities/types";
+import { messageStore } from "../services/messageStore.ts";
+import { loadFriendsList } from "../services/friendsStore.ts";
+import type { StoredMessage } from "../utilities/types.ts";
 
 /**
  * Hook to manage conversations from local database

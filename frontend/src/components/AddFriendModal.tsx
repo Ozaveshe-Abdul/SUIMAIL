@@ -11,7 +11,7 @@ import {
 } from "@radix-ui/themes";
 import { motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
-import { addFriend, isValidSuiAddress } from "../services/friendsStore";
+import { addFriend, isValidSuiAddress } from "../services/friendsStore.ts";
 
 export function AddFriendModal() {
     const [address, setAddress] = useState("");

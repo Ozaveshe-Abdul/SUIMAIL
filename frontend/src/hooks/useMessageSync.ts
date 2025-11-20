@@ -2,9 +2,9 @@
 
 import { useEffect, useCallback } from "react";
 import { useSuiClientQuery } from "@mysten/dapp-kit";
-import { CHAT_ENVELOP_TYPE } from "../utilities/constants";
-import { messageStore } from "../services/messageStore";
-import type { ChatEnvelopFields } from "../utilities/types";
+import { CHAT_ENVELOP_TYPE } from "../utilities/constants.ts";
+import { messageStore } from "../services/messageStore.ts";
+import type { ChatEnvelopFields } from "../utilities/types.ts";
 import {SuiObjectResponse} from "@mysten/sui/client";
 
 
