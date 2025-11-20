@@ -4,7 +4,7 @@ import { Box, Card, Text, IconButton, Flex } from "@radix-ui/themes";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { Trash2, Download, FileText } from "lucide-react";
 import { motion } from "framer-motion";
-import type { StoredMessage } from "../utilities/types";
+import type { StoredMessage } from "../utilities/types.ts";
 
 interface MessageBubbleProps {
     message: StoredMessage;

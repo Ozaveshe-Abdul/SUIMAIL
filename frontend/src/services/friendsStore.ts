@@ -1,6 +1,6 @@
 // web-app/src/services/friendsStore.ts
 
-import type { FriendsList } from "../utilities/types";
+import type { FriendsList } from "../utilities/types.ts";
 
 const FRIENDS_STORAGE_KEY = "suimail_friends_list";
 

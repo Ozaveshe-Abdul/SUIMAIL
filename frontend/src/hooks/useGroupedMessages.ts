@@ -1,6 +1,6 @@
 
 import { useMemo } from "react";
-import { ChatEnvelopFields } from "../utilities/types";
+import { ChatEnvelopFields } from "../utilities/types.ts";
 
 export function useGroupedMessages(messages: ChatEnvelopFields[]) {
     return useMemo(() => {
