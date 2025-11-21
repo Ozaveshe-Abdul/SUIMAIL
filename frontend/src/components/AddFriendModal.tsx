@@ -7,19 +7,22 @@ import {
     Text,
     TextField,
     IconButton,
-    Box,
+    Box, Spinner,
 } from "@radix-ui/themes";
 import { motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
 import { addFriend, isValidSuiAddress } from "../services/friendsStore.ts";
+import {useSuiMailMessenger} from "../hooks/useSuiMailMessenger.ts";
 
 export function AddFriendModal() {
     const [address, setAddress] = useState("");
     const [alias, setAlias] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [error, setError] = useState("");
+    const [isCreating, setIsCreating] = useState(false);
+    const {createChannel} = useSuiMailMessenger()
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setError("");
 
         const trimmedAddress = address.trim();
@@ -34,8 +37,20 @@ export function AddFriendModal() {
             setError("Invalid Sui address format (must be 0x + 64 hex chars)");
             return;
         }
+        setIsCreating(true);
+        try {
+            await createChannel(
+                address,
+            );
+            addFriend(trimmedAddress, trimmedAlias);
 
-        addFriend(trimmedAddress, trimmedAlias);
+        } catch (error) {
+            alert("Send failed: " + error);
+            console.log("from adding friend " + error);
+        } finally {
+            setIsCreating(false);
+        }
+
 
         // Reset and close
         setIsOpen(false);
@@ -60,8 +75,14 @@ export function AddFriendModal() {
                             fontWeight: 600,
                         }}
                     >
-                        <Plus size={16} style={{ marginRight: 6 }} />
-                        Add Friend
+                        {isCreating ? (
+                            <Spinner />
+                        ) : (
+                            <>
+                                <Plus size={16} style={{ marginRight: 6 }} />
+                                Add friend
+                            </>
+                        )}
                     </Button>
                 </motion.div>
             </Dialog.Trigger>

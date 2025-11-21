@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { useCurrentAccount, useDisconnectWallet } from '@mysten/dapp-kit';
 import {Button} from "@radix-ui/themes";
-import {Facebook} from "lucide-react";
+import {LucideBowArrow, Wallet, Plus} from "lucide-react";
 
-function LogoutButton() {
+export function LogoutButton() {
     const account = useCurrentAccount();
     const disconnectWallet = useDisconnectWallet();
     const navigate = useNavigate();
@@ -24,11 +24,40 @@ function LogoutButton() {
                     backdropFilter: 'blur(12px)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
             }}
-            onClick={() => handleLogout()}
+            onClick={() => handleLogout}
         >
-            <Facebook size={24} />
+            <Wallet size={24} />
             <span className="ml-3">Logout</span>
     </Button>;
 }
 
-export default LogoutButton;
+export function Logout() {
+    const account = useCurrentAccount();
+    const disconnectWallet = useDisconnectWallet();
+    // const navigate = useNavigate();
+
+    const handleLogout = () => {
+        disconnectWallet.mutate();
+        // navigate('/login');
+    };
+
+    if (!account) return null;
+    return (
+        <Button
+            variant="soft"
+            size="2"
+            style={{
+                background: "rgba(255, 255, 255, 0.15)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                color: "white",
+                fontWeight: 600,
+            }}
+            onClick={ handleLogout}
+        >
+            <Wallet size={16} style={{ marginRight: 6 }} />
+            Log out
+        </Button>
+    )
+}
+export default Logout;
