@@ -135,9 +135,13 @@ export function Home() {
             try {
                 const msgs = await getMessages(selectedChannelId, 50);
 
+                // This works with flex-direction: column-reverse to put the newest at the bottom
+                const sortedMsgs = msgs.sort((a: any, b: any) =>
+                    Number(b.createdAtMs) - Number(a.createdAtMs)
+                );
                 // Process Attachments (Lazy Loading)
                 // We must resolve the promises for any attachments
-                const processedMsgs = await Promise.all(msgs.map(async (msg: any) => {
+                const processedMsgs = await Promise.all(sortedMsgs.map(async (msg: any) => {
                     if (msg.attachments && msg.attachments.length > 0) {
                         // Resolve the data promise for the UI
                         const resolvedAttachments = await Promise.all(msg.attachments.map(async (att: any) => {

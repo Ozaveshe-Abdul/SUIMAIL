@@ -9,7 +9,7 @@ import { SessionKey } from "@mysten/seal";
 // Export these if needed elsewhere, but keeping them internal is cleaner
 const NETWORK = "testnet";
 const RPC_URL = "https://fullnode.testnet.sui.io:443";
-const MESSAGING_PACKAGE_ID = "0xc223298df5fc05e208d7b5709c8e2f4c2c00e11dbeb5de5804f0a927f475b06f";
+const MESSAGING_PACKAGE_ID = "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d";
 
 const SEAL_SERVERS = [
     { objectId: "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75", weight: 1 },
