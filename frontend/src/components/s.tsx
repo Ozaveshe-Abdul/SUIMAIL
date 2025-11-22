@@ -1,7 +1,7 @@
 import { ConnectButton } from "@mysten/dapp-kit";
 import "./ConnectButton.css";
 import {useNavigate} from "react-router-dom";
-import {Chrome, Wallet} from "lucide-react";
+import {Chrome,} from "lucide-react";
 import {Button} from "@radix-ui/themes"; // Your custom styles
 
 export function StyledConnectButton() {

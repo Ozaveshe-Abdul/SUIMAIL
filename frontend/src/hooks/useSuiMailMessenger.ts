@@ -7,6 +7,13 @@ import { Transaction } from "@mysten/sui/transactions";
 
 const SESSION_STORAGE_KEY = "suimail_session_v1";
 
+// Interface for Polling used in getLatestMessages
+interface PollingState {
+    lastMessageCount: bigint;
+    lastCursor: bigint | null;
+    channelId: string;
+}
+
 // Serialization Helper
 function serializeSessionKey(sessionKey: SessionKey): string {
     const exported = sessionKey.export();
@@ -28,9 +35,6 @@ export function useSuiMailMessenger() {
     const account = useCurrentAccount();
     const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
     const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
-
-    // REMOVED: const [suiClient] = useState(...)
-    // We now use 'baseMessagingClient' imported directly
 
     const [client, setClient] = useState<any>(null);
     const [isReady, setIsReady] = useState(false);
@@ -88,7 +92,7 @@ export function useSuiMailMessenger() {
                 }
 
                 // C. Initialize Messaging Client
-                const newClient = createMessagingClient( sessionKey);
+                const newClient = createMessagingClient(sessionKey);
                 setClient(newClient);
                 setIsReady(true);
 
@@ -101,15 +105,16 @@ export function useSuiMailMessenger() {
         initClient();
     }, [account, signPersonalMessage]);
 
-    // ... (The rest of your code: getMyChannels, createChannel, etc. remains exactly the same)
-    // Just make sure to replace 'suiClient' with 'baseMessagingClient' in the 'createChannel' function too!
-
-    const createChannel = useCallback(async (friendAddress: string) => {
+    /**
+     * Create Channel (Modified to accept list of addresses for Groups)
+     */
+    const createChannel = useCallback(async (memberAddresses: string[]) => {
         if (!client || !account) throw new Error("Client not ready");
 
+        // Use the SDK flow which handles multiple initial members automatically
         const flow = client.messaging.createChannelFlow({
             creatorAddress: account.address,
-            initialMemberAddresses: [friendAddress],
+            initialMemberAddresses: memberAddresses, // Pass the full array here
         });
 
         const channelTx = flow.build();
@@ -119,15 +124,27 @@ export function useSuiMailMessenger() {
         await baseMessagingClient.waitForTransaction({
             digest, options: { showObjectChanges: true }
         });
+        const txResult = await baseMessagingClient.waitForTransaction({
+            digest, options: { showObjectChanges: true }
+        });
 
-        const { creatorMemberCap } = await flow.getGeneratedCaps({ digest });
+        const channelObj = txResult.objectChanges?.find(
+            (c: any) => c.type === 'created' && c.objectType.includes('::channel::Channel')
+        );
+        console.log("channelObj", channelObj);
+        const channelId = (channelObj as any).objectId;
+        console.log("channelId", channelId);
+
+        const { creatorMemberCap, creatorCap } = await flow.getGeneratedCaps({ digest });
         const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorMemberCap });
 
         const { digest: finalDigest } = await signAndExecute({ transaction: attachKeyTx });
         await baseMessagingClient.waitForTransaction({ digest: finalDigest });
 
-        return { success: true };
+        // Return creatorCap as well, as it is needed for addMembers
+        return { success: true, channelId, creatorCapId: creatorCap.id };
     }, [client, account, signAndExecute]);
+
 
     const sendMessage = useCallback(async (
         channelId: string,
@@ -159,7 +176,66 @@ export function useSuiMailMessenger() {
 
     }, [client, account, signAndExecute]);
 
-    // READ methods (getMyChannels, etc.) remain unchanged...
+    /**
+     * Add Members to Channel (Auto-resolves Caps)
+     */
+    const addMembers = useCallback(async (
+        channelId: string,
+        newMemberAddresses: string[]
+    ) => {
+        if (!client || !account) throw new Error("Client not ready");
+
+        // Trim addresses for safety before use
+        const trimmedAddresses = newMemberAddresses.map(a => a.trim());
+
+        // 1. Fetch the user's MemberCap for this channel
+        // We fetch memberships to find the specific ID needed to prove we are in the channel
+        const membershipsResult = await client.messaging.getChannelMemberships({
+            address: account.address,
+            limit: 50 // Adjust if user is in many channels
+        });
+
+        const membership = membershipsResult.memberships.find(
+            (m: any) => m.channel_id === channelId
+        );
+
+        if (!membership) {
+            throw new Error("You are not a member of this channel");
+        }
+
+        // 2. Fetch the user's CreatorCap (Required for admin rights)
+        // We scan the user's objects to find the CreatorCap
+        // Note: We filter by the specific Struct Type for CreatorCap
+        const ownedObjects = await client.core.getOwnedObjects({
+            owner: account.address,
+            filter: {
+                StructType: `${APP_PACKAGE_ID}::creator_cap::CreatorCap`
+            },
+            options: { showType: true }
+        });
+
+        // In this simplified logic, we assume the first CreatorCap found is valid.
+        const creatorCapObj = ownedObjects.data[0];
+
+        if (!creatorCapObj || !creatorCapObj.data) {
+            throw new Error("You do not have the Creator Capability (Admin rights) to add members.");
+        }
+
+        // 3. Build and Execute
+        const tx = client.messaging.addMembersTransaction({
+            channelId,
+            memberCapId: membership.member_cap_id,
+            creatorCapId: creatorCapObj.data.objectId,
+            newMemberAddresses: trimmedAddresses,
+        });
+
+        const { digest } = await signAndExecute({ transaction: tx });
+        await baseMessagingClient.waitForTransaction({ digest, options: { showObjectChanges: true } });
+
+        return { success: true, digest };
+    }, [client, account, signAndExecute]);
+
+    // READ methods
     const getMyChannels = useCallback(async () => {
         if (!client || !account) return [];
         const result = await client.messaging.getChannelMemberships({
@@ -175,6 +251,15 @@ export function useSuiMailMessenger() {
             channelIds,
             userAddress: account.address,
         });
+    }, [client, account]);
+
+    const getChannelObjectsByAddress = useCallback(async () => {
+        if (!client || !account) return [];
+        const result = await client.messaging.getChannelObjectsByAddress({
+            address: account.address,
+            limit: 50
+        });
+        return result.channelObjects;
     }, [client, account]);
 
     const getChannelMembers = useCallback(async (channelId: string) => {
@@ -193,13 +278,67 @@ export function useSuiMailMessenger() {
         })).messages;
     }, [client, account]);
 
+    const getLatestMessages = useCallback(async (
+        channelId: string,
+        lastMessageCount: bigint,
+        lastCursor: bigint | null,
+        limit = 50
+    ) => {
+        if (!client || !account) return { messages: [], hasNextPage: false, cursor: null };
+
+        const pollingState: PollingState = {
+            channelId,
+            lastMessageCount,
+            lastCursor
+        };
+
+        return await client.messaging.getLatestMessages({
+            channelId,
+            userAddress: account.address,
+            pollingState,
+            limit,
+        });
+    }, [client, account]);
+
+    // Session Key Management
+    const refreshSessionKey = useCallback(async () => {
+        if (!client) return null;
+        const newKey = await client.messaging.refreshSessionKey();
+
+        // Update local storage with new key
+        if (account && newKey) {
+            localStorage.setItem(
+                `${SESSION_STORAGE_KEY}_${account.address}`,
+                serializeSessionKey(newKey)
+            );
+        }
+        return newKey;
+    }, [client, account]);
+
+    const updateSessionKey = useCallback((newSessionKey: SessionKey) => {
+        if (!client) return;
+        client.messaging.updateSessionKey(newSessionKey);
+
+        if (account) {
+            localStorage.setItem(
+                `${SESSION_STORAGE_KEY}_${account.address}`,
+                serializeSessionKey(newSessionKey)
+            );
+        }
+    }, [client, account]);
+
     return {
         isReady,
         createChannel,
         sendMessage,
+        addMembers,
         getMessages,
+        getLatestMessages,
         getMyChannels,
         getChannelObjects,
-        getChannelMembers
+        getChannelObjectsByAddress,
+        getChannelMembers,
+        refreshSessionKey,
+        updateSessionKey
     };
 }

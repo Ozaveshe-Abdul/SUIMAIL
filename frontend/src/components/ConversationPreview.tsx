@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { FileText, Image, MessageCircle } from "lucide-react";
 import type { StoredMessage } from "../utilities/types.ts";
 import { getFriendAlias } from "../services/friendsStore.ts";
+import {useCurrentAccount} from "@mysten/dapp-kit";
 
 interface ConversationPreviewProps {
     conversationId: string;
@@ -19,7 +20,8 @@ export function ConversationPreview({
                                         onClick,
                                         isSelected = false,
                                     }: ConversationPreviewProps) {
-    const friendAlias = getFriendAlias(conversationId);
+    const connectedAccount = useCurrentAccount()
+    const friendAlias = getFriendAlias(connectedAccount!!.address, conversationId);
     const displayName =
         friendAlias || `${conversationId.substring(0, 6)}...${conversationId.slice(-4)}`;
 

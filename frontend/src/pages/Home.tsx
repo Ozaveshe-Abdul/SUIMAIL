@@ -1,23 +1,26 @@
-import { useCurrentAccount } from "@mysten/dapp-kit";
+import {useCurrentAccount} from "@mysten/dapp-kit";
 import "@mysten/dapp-kit/dist/index.css";
-import { useEffect, useState, useRef } from "react";
+import {useEffect, useRef, useState} from "react";
 import Logout from "../components/LogoutButton.tsx";
-import { Box, Flex, Heading, TextField, Spinner, IconButton, Text } from "@radix-ui/themes";
-import { AnimatePresence } from "framer-motion";
-import { Paperclip, Send, X } from "lucide-react";
+import {Box, Flex, Heading, IconButton, ScrollArea, Spinner, Text, TextField} from "@radix-ui/themes";
+import {AnimatePresence} from "framer-motion";
+import {Paperclip, Send, X} from "lucide-react";
 
 // Hooks and Services
-import { useSuiMailMessenger } from "../hooks/useSuiMailMessenger";
-import { getFriendAlias } from "../services/friendsStore.ts";
-
+import {useSuiMailMessenger} from "../hooks/useSuiMailMessenger";
+// import { getFriendAlias } from "../services/friendsStore.ts";
 // Components
-import { GradientButton } from "../components/GradientButton.tsx";
-import { AddFriendModal } from "../components/AddFriendModal.tsx";
-import { ConversationPreview } from "../components/ConversationPreview.tsx";
-import { MessageBubble } from "../components/MessageBubble.tsx";
-import { StyledConnectButton } from "../components/s.tsx";
-import { LoginScreen } from "./LoginScreen.tsx";
-import {useFriends} from "../hooks/useFriends.ts";
+import {GradientButton} from "../components/GradientButton.tsx";
+import {AddFriendModal} from "../components/AddFriendModal.tsx";
+import {ConversationPreview} from "../components/ConversationPreview.tsx";
+import {MessageBubble} from "../components/MessageBubble.tsx";
+// import { StyledConnectButton } from "../components/s.tsx";
+import {LoginScreen} from "./LoginScreen.tsx";
+// import {useFriends} from "../hooks/useFriends.ts";
+import {CreateGroupModal} from "../components/CreateGroupModal.tsx";
+import {getFriendAlias, isFriend} from "../services/friendsStore.ts";
+import {ChatHeaderActions} from "../components/ChatHeaderActions.tsx";
+import {StoredMessage} from "../utilities/types.ts";
 
 // Data Structure to match your UI needs
 type ChannelData = {
@@ -42,6 +45,8 @@ export function Home() {
 
     // State
     const [channels, setChannels] = useState<ChannelData[]>([]);
+    const [selectedChannel, setSelectedChannel] = useState<ChannelData | null>(null);
+    const [groups, setGroups] = useState<ChannelData[]>([]);
     const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
     const [currentMessages, setCurrentMessages] = useState<any[]>([]);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -53,7 +58,7 @@ export function Home() {
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const friendsList = useFriends();
+    // const friendsList = useFriends(account?.address || "");
     // ------------------------------------------------------------------
     // 1. LOAD CHANNELS
     // ------------------------------------------------------------------
@@ -61,12 +66,13 @@ export function Home() {
         if (!isReady || !account) {
             setChannels([])
             setSelectedChannelId(null)
+            setSelectedChannel(null)
             setCurrentMessages([])
             setIsLoadingMessages(false)
             setIsSending(false)
 
             return
-        };
+        }
 
         const loadChannels = async () => {
             try {
@@ -86,6 +92,8 @@ export function Home() {
 
                 // C. Process and Merge
                 const formattedChannels: ChannelData[] = [];
+                const groups: ChannelData[] = [];
+
 
                 for (const mem of memberships) {
                     const obj = channelObjects.find((o: any) => o.id.id === mem.channel_id);
@@ -98,6 +106,12 @@ export function Home() {
                     try {
                         const membersData = await getChannelMembers(mem.channel_id);
                         const found = membersData.find((m: any) => m.memberAddress !== account.address);
+
+                            // If more than 2 people, consider it a "Group"
+                        if (membersData.length > 2) {
+                            groups.push(mem);
+                        }
+
                         if (found) otherMember = found.memberAddress;
                     } catch (e) {
                         console.warn("Could not fetch members for channel", mem.channel_id);
@@ -112,6 +126,8 @@ export function Home() {
                     });
                 }
 
+                setGroups(groups);
+                console.log("channels", groups);
                 setChannels(formattedChannels);
             } catch (e) {
                 console.error("Failed to load channels", e);
@@ -130,29 +146,60 @@ export function Home() {
         if (!selectedChannelId || !isReady) return;
 
         const fetchMessages = async () => {
+            // Only show spinner if we have NO messages
             if (currentMessages.length === 0) setIsLoadingMessages(true);
 
             try {
                 const msgs = await getMessages(selectedChannelId, 50);
 
-                // This works with flex-direction: column-reverse to put the newest at the bottom
+                // 1. Sort Newest First (Fixes ordering issue)
                 const sortedMsgs = msgs.sort((a: any, b: any) =>
                     Number(b.createdAtMs) - Number(a.createdAtMs)
                 );
-                // Process Attachments (Lazy Loading)
-                // We must resolve the promises for any attachments
+
+                // 2. Process Attachments & Map to UI Structure
                 const processedMsgs = await Promise.all(sortedMsgs.map(async (msg: any) => {
+                    // Check if SDK returned attachments (LazyDecryptAttachmentResult[])
                     if (msg.attachments && msg.attachments.length > 0) {
-                        // Resolve the data promise for the UI
-                        const resolvedAttachments = await Promise.all(msg.attachments.map(async (att: any) => {
-                            const data = await att.data; // AWAIT THE PROMISE
-                            const blob = new Blob([data], { type: att.mimeType });
+                        try {
+                            // Get the first attachment (assuming 1 per message for now)
+                            const att = msg.attachments[0];
+
+                            // Resolve the lazy data promise
+                            const dataBytes = await att.data;
+
+                            // Create Blob URL
+                            const blob = new Blob([dataBytes], { type: att.mimeType });
                             const url = URL.createObjectURL(blob);
-                            return { ...att, url }; // Add URL for <img> tag
-                        }));
-                        return { ...msg, attachments: resolvedAttachments };
+
+                            // Return structure matching MessageBubble expectations
+                            return {
+                                ...msg,
+                                id: { id: msg.createdAtMs }, // SDK might not return 'id', use timestamp
+                                decryptedPayload: {
+                                    text: msg.text,
+                                    file: {
+                                        name: att.fileName,
+                                        type: att.mimeType,
+                                        data: url // <--- Valid Blob URL
+                                    }
+                                }
+                            };
+                        } catch (e) {
+                            console.error("Failed to load attachment", e);
+                            return msg; // Return original on error
+                        }
                     }
-                    return msg;
+
+                    // No attachments, just map text
+                    return {
+                        ...msg,
+                        id: { id: msg.createdAtMs },
+                        decryptedPayload: {
+                            text: msg.text,
+                            file: null
+                        }
+                    };
                 }));
 
                 setCurrentMessages(processedMsgs);
@@ -164,9 +211,10 @@ export function Home() {
         };
 
         fetchMessages();
-        const interval = setInterval(fetchMessages, 3000);
+        const interval = setInterval(fetchMessages, 5000); // Poll every 5s
         return () => clearInterval(interval);
-    }, [selectedChannelId, isReady, getMessages]);
+    }, [selectedChannelId, isReady, getMessages]); // Removed currentMessages dependency to avoid loops
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -221,19 +269,26 @@ export function Home() {
     };
 
     const handleFile = (file: File) => {
+        // setAttachedFile(file);
+        // const reader = new FileReader();
+        // reader.onload = (e) => setFilePreview(e.target?.result as string);
+        // reader.readAsDataURL(file);
         setAttachedFile(file);
-        const reader = new FileReader();
-        reader.onload = (e) => setFilePreview(e.target?.result as string);
-        reader.readAsDataURL(file);
+        // FileReader is robust for Base64, but for previewing large images,
+        // createObjectURL is faster and safer.
+        const objectUrl = URL.createObjectURL(file);
+        setFilePreview(objectUrl);
     };
 
     // ... (Render Logic helpers)
     const activeChannel = channels.find(c => c.channelId === selectedChannelId);
     const getHeaderTitle = () => {
         if (!activeChannel) return "Chat";
-        // const alias = friendsList[activeChannel.friendAddress];
+        const currentGroup = groups?.find((g) => g.channelId === selectedChannelId);
+        const isGroup = !!currentGroup;
+        // const alias = friendsList[account!!.address, activeChannel.friendAddress];
         // return alias || `${activeChannel.friendAddress.slice(0, 6)}...${activeChannel.friendAddress.slice(-4)}`;
-        const alias = getFriendAlias(activeChannel.friendAddress);
+        const alias = getFriendAlias(account!!.address, isGroup ? activeChannel.channelId: activeChannel.friendAddress);
         return alias || `${activeChannel.friendAddress.slice(0, 6)}...${activeChannel.friendAddress.slice(-4)}`;
     };
 
@@ -260,7 +315,6 @@ export function Home() {
                     </Heading>
                     <Flex gap="2">
                         <AddFriendModal />
-                        {/*<Logout />*/}
                     </Flex>
                 </Flex>
 
@@ -269,7 +323,7 @@ export function Home() {
                         {channels.map((channel) => (
                             <ConversationPreview
                                 key={channel.channelId}
-                                conversationId={channel.friendAddress}
+                                conversationId={ groups.find((g: any) => g.channel_id === channel.channelId) ? channel.channelId : channel.friendAddress}
                                 // Ensure lastMessage is formatted as ConversationPreview expects
                                 messages={channel.lastMessage ? [{
                                     id: { id: "latest" },
@@ -282,58 +336,112 @@ export function Home() {
                                         } : null
                                     }
                                 }] as any : []}
-                                onClick={() => setSelectedChannelId(channel.channelId)}
+                                onClick={() =>{
+                                    setSelectedChannelId(channel.channelId)
+                                    setSelectedChannel(channel)
+                                    setCurrentMessages([])
+                                    setIsLoadingMessages(true)
+                                }}
                                 isSelected={selectedChannelId === channel.channelId}
                             />
                         ))}
                     </Flex>
                 </Box>
                 <Box style={{ position: "absolute", bottom: 16, left: 16 }}>
-                    {/*<StyledConnectButton />*/}
+                    <CreateGroupModal />
+                    <Box p="2"></Box>
                     <Logout />
                 </Box>
             </Box>
 
             {/* CHAT AREA */}
-            <Flex direction="column" style={{ flex: 1 }}>
+            <Flex direction="column" style={{ flex: 1, height: "100%" }}>
                 {!selectedChannelId ? (
-                    <Flex align="center" justify="center" style={{ height: "100%", color: "rgba(255,255,255,0.6)" }}>
-                        <Text size="5">Select a chat to start messaging</Text>
+                    /* Empty State */
+                    <Flex align="center" justify="center" height="100%">
+                        <Text size="5" style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+                            Select a chat to start messaging
+                        </Text>
                     </Flex>
                 ) : (
-                    <Flex direction="column" style={{ height: "100%" }}>
-                        <Box p="4" style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)" }}>
-                            <Heading size="4" style={{ color: "#e0f2fe" }}>{getHeaderTitle()}</Heading>
+                    <Flex direction="column" height="100%">
+                        {/* Header */}
+                        <Box
+                            p="3"
+                            style={{
+                                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                                background: "rgba(255, 255, 255, 0.05)",
+                                backdropFilter: "blur(10px)",
+                            }}
+                        >
+                            <Flex justify="between" align="center">
+                                <Box>
+                                    <Heading size="5" weight="bold" style={{ color: "#e0f2fe" }}>
+                                        {getHeaderTitle()}
+                                    </Heading>
+                                </Box>
+
+                                <ChatHeaderActions
+                                    channelId={selectedChannelId}
+                                    channel={selectedChannel}
+                                    account={account}
+                                    isFriend={isFriend}
+                                    groups={groups}
+                                />
+                            </Flex>
                         </Box>
 
-                        <Flex direction="column-reverse" gap="3" p="4" style={{ flex: 1, overflowY: "auto", background: "rgba(0,0,0,0.1)" }}>
-                            <div ref={messagesEndRef} />
-                            {isLoadingMessages && <Spinner />}
-                            <AnimatePresence>
-                                {currentMessages.map((msg) => (
-                                    <MessageBubble
-                                        key={msg.createdAtMs || Math.random()}
-                                        // Map SDK message format to what MessageBubble expects
-                                        message={{
-                                            id: { id: msg.createdAtMs }, // SDK doesn't give msg ID in decrypted list usually, use timestamp
-                                            sender: msg.sender,
-                                            timestamp: msg.createdAtMs,
-                                            decryptedPayload: {
-                                                text: msg.text,
-                                                // We added the .url property in the useEffect above
-                                                file: msg.attachments?.[0] ? {
-                                                    name: msg.attachments[0].fileName,
-                                                    type: msg.attachments[0].mimeType,
-                                                    data: msg.attachments[0].url // Use the Blob URL created
-                                                } : null
-                                            }
-                                        } as any}
-                                        onDelete={() => {}}
-                                    />
-                                ))}
-                            </AnimatePresence>
-                        </Flex>
+                        {/* Messages Area */}
+                        <Box style={{ flex: 1, position: "relative", background: "rgba(0,0,0,0.12)" }}>
 
+
+                            <ScrollArea style={{ height: "100%" }}>
+                                <Box p="4">
+                                    <Flex direction="column-reverse" gap="3">
+                                        <div ref={messagesEndRef} />
+
+                                        {isLoadingMessages && ( <Spinner size="3"  style={{position: "absolute"}}/>
+                                            )}
+                                        <AnimatePresence>
+                                            {currentMessages.map((msg, index) => {
+                                                // const prevMsg = currentMessages[index + 1];
+                                                // const isSameSenderAsPrev = prevMsg?.sender === msg.sender;
+                                                const currentGroup = groups?.find((g) => g.channelId === selectedChannelId);
+                                                // const isGroup = !!currentGroup;
+                                                const showSender = !!currentGroup;
+
+                                                return (
+                                                    <MessageBubble
+                                                        key={msg.createdAtMs || index}
+                                                        message={{
+                                                            id: { id: msg.createdAtMs },
+                                                            sender: msg.sender,
+                                                            timestamp: String(msg.createdAtMs),
+                                                            decryptedPayload: {
+                                                                text: msg.text || "",
+                                                                file: msg.attachments?.[0]
+                                                                    ? {
+                                                                        name: msg.attachments[0].fileName,
+                                                                        type: msg.attachments[0].mimeType,
+                                                                        data: msg.attachments[0].url,
+                                                                    }
+                                                                    : null,
+                                                            },
+                                                        } as StoredMessage}
+                                                        onDelete={() => {}}
+                                                        showSender={showSender}
+                                                        senderAlias={getFriendAlias(account!!.address, msg.sender)}
+                                                        isConsecutive={false}
+                                                    />
+                                                );
+                                            })}
+                                        </AnimatePresence>
+                                    </Flex>
+                                </Box>
+                            </ScrollArea>
+                        </Box>
+
+                       {/* Message Input */}
                         {/* Input Area */}
                         <Box p="3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.08)" }} onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}>
                             {filePreview && (
@@ -356,6 +464,7 @@ export function Home() {
                             </Flex>
                         </Box>
                     </Flex>
+
                 )}
             </Flex>
         </Flex>
