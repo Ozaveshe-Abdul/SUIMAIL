@@ -44,11 +44,6 @@ export const useSuiTransfer = () => {
 
         setIsTransferring(true);
 
-        // Show initial processing toast
-        toast.loading(`Processing transfer of ${amount} SUI...`, {
-            id: 'transfer-toast'
-        });
-
         try {
             // Convert SUI to MIST (1 SUI = 1,000,000,000 MIST)
             const amountInMist = Math.floor(amount * 1_000_000_000);
@@ -66,18 +61,12 @@ export const useSuiTransfer = () => {
                     },
                     {
                         onSuccess: () => {
-                            // Dismiss loading toast and show success
-                            toast.success(`Successfully sent ${amount} SUI!`, {
-                                id: 'transfer-toast'
-                            });
+                            toast.success(`Successfully sent ${amount} SUI!`);
                             resolve();
                         },
                         onError: (error: Error) => {
                             console.error("Transfer failed:", error);
-                            // Dismiss loading toast and show error
-                            toast.error("Transfer failed: " + error.message, {
-                                id: 'transfer-toast'
-                            });
+                            toast.error("Transfer failed: " + error.message);
                             reject(error);
                         },
                     }
@@ -88,10 +77,6 @@ export const useSuiTransfer = () => {
             return { wasTransfer: true, success: true, amount };
         } catch (error) {
             console.error("Transfer error:", error);
-            // Dismiss loading toast and show error
-            toast.error("Transfer failed", {
-                id: 'transfer-toast'
-            });
             setIsTransferring(false);
             return { wasTransfer: true, success: false, amount };
         }
