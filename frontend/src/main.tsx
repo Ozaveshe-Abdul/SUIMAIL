@@ -9,24 +9,12 @@ import { Theme } from "@radix-ui/themes";
 import App from "./App.tsx";
 import { networkConfig } from "./networkConfig.ts";
 import RegisterEnokiWallets from "./components/RegisterEnokiWallets.tsx";
-import {SuiClient} from "@mysten/sui/client";
+import {baseMessagingClient} from "./services/suiMessagingClient.ts";
 
 const queryClient = new QueryClient();
 
 const createClient = () => {
-    return new SuiClient({
-        url: "https://fullnode.testnet.sui.io:443",
-        mvr: {
-            // Dummy URL to bypass "not set" check
-            url: "https://mvr.sui.io",
-            overrides: {
-                packages: {
-                    // Hardcoded Package ID
-                    '@local-pkg/sui-stack-messaging': "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d",
-                },
-            },
-        },
-    });
+    return baseMessagingClient;
 };
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

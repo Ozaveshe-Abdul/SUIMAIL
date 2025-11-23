@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import {Friend, getFriends,} from "../services/friendsStore";
-import {} from "../utilities/types.ts";
 
 export function useFriends(address: string) {
     // Initialize state with current data from local storage

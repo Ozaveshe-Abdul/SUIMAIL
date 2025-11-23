@@ -2,7 +2,7 @@
 import { Box, Flex, TextField, IconButton, Text, Spinner } from "@radix-ui/themes";
 import { X, Paperclip, Send } from "lucide-react";
 import { GradientButton } from "./GradientButton"; // Assuming this is your custom button
-import { useRef, useState } from "react";
+import {useEffect, useRef, useState} from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import {useSuiTransfer} from "../hooks/useSuiTransfer.ts";
 
@@ -11,9 +11,11 @@ interface ChatInputAreaProps {
     onSendMessage: (text: string, file: File | null) => Promise<void>;
     // You need to pass the recipient's address to this component now
     recipientAddress: string;
+    // to clear data when a chat is changes
+    channelId?: string;
 }
 
-export const ChatInputArea = ({ onSendMessage, recipientAddress }: ChatInputAreaProps) => {
+export const ChatInputArea = ({ onSendMessage, recipientAddress, channelId }: ChatInputAreaProps) => {
     // Local state for message text and file attachments
     const [currentMessage, setCurrentMessage] = useState("");
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -32,6 +34,14 @@ export const ChatInputArea = ({ onSendMessage, recipientAddress }: ChatInputArea
 
     // Combine loading states
     const isBusy = isSendingNormal || isTransferring;
+
+    // Add this useEffect
+    useEffect(() => {
+        // Reset input fields when channel changes
+        setCurrentMessage("");
+        setAttachedFile(null);
+        setFilePreview(null);
+    }, [channelId]);
 
     // Handle file selection from input or drop
     const handleFile = (file: File) => {
@@ -52,7 +62,7 @@ export const ChatInputArea = ({ onSendMessage, recipientAddress }: ChatInputArea
         // 1. First, check if this is a SUI transfer command (e.g., #send@20)
         // We don't allow files with transfers for simplicity.
         if (!attachedFile) {
-            const wasTransfer = await handlePotentialTransfer(
+            const transferResult = await handlePotentialTransfer(
                 messageText,
                 recipientAddress,
                 currentAccount,
@@ -60,9 +70,22 @@ export const ChatInputArea = ({ onSendMessage, recipientAddress }: ChatInputArea
             );
 
             // If it WAS a transfer command, our hook handled it.
-            // We clear the input and exit.
-            if (wasTransfer) {
+            if (transferResult.wasTransfer) {
                 setCurrentMessage("");
+
+                // If the transfer was successful, send a notification message
+                if (transferResult.success && transferResult.amount) {
+                    try {
+                        setIsSendingNormal(true);
+                        // Send a message indicating the transfer
+                        const transferMessage = `💸 Sent ${transferResult.amount} SUI`;
+                        await onSendMessage(transferMessage, null);
+                    } catch (error) {
+                        console.error("Failed to send transfer notification:", error);
+                    } finally {
+                        setIsSendingNormal(false);
+                    }
+                }
                 return;
             }
         }
@@ -123,7 +146,7 @@ export const ChatInputArea = ({ onSendMessage, recipientAddress }: ChatInputArea
             {/* Input Field and Buttons */}
             <Flex gap="2" align="center">
                 <TextField.Root
-                    placeholder="Type a message..."
+                    placeholder="Type a message or #send@amount..."
                     value={currentMessage}
                     onChange={(e) => setCurrentMessage(e.target.value)}
                     onKeyDown={(e) => {

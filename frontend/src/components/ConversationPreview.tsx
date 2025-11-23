@@ -1,11 +1,11 @@
 // web-app/src/components/ConversationPreview.tsx
 
-import { Box, Flex, Text, Avatar } from "@radix-ui/themes";
-import { motion } from "framer-motion";
-import { FileText, Image, MessageCircle } from "lucide-react";
-import type { StoredMessage } from "../utilities/types.ts";
-import { getFriendAlias } from "../services/friendsStore.ts";
+import {Avatar, Box, Flex, Text} from "@radix-ui/themes";
+import {motion} from "framer-motion";
+import {FileText, Image, MessageCircle} from "lucide-react";
+import type {StoredMessage} from "../utilities/types.ts";
 import {useCurrentAccount} from "@mysten/dapp-kit";
+import {getFriendAlias} from "../services/friendsStore.ts";
 
 interface ConversationPreviewProps {
     conversationId: string;
@@ -21,7 +21,14 @@ export function ConversationPreview({
                                         isSelected = false,
                                     }: ConversationPreviewProps) {
     const connectedAccount = useCurrentAccount()
-    const friendAlias = getFriendAlias(connectedAccount!!.address, conversationId);
+
+    // const friends = useFriends(connectedAccount!!.address)
+    // // Find friend in the list
+    // const friend = friends.find(f => f.address === conversationId);
+    // Use alias if found, otherwise show shortened address
+    // const isGroup = !!currentGroup;
+    const alias = getFriendAlias(connectedAccount!!.address, conversationId);
+    const friendAlias = alias;
     const displayName =
         friendAlias || `${conversationId.substring(0, 6)}...${conversationId.slice(-4)}`;
 

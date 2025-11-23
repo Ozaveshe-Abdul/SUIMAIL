@@ -78,7 +78,7 @@ export function MessageBubble({
                 {showSender && !isConsecutive && !isMe && (
                     <Avatar
                         size="2"
-                        fallback={message.sender[6] || "?"}
+                        fallback={ senderAlias?.slice(0, 2) || message.sender.slice(2, 4) }
                         style={{
                             background: "linear-gradient(135deg, #8b5cf6, #ec4899)",
                             color: "white",
@@ -88,7 +88,7 @@ export function MessageBubble({
                 )}
 
                 {/* Optional spacer when avatar is hidden */}
-                {showSender && !isConsecutive && isMe && <Box width="32px" height="32px" />}
+                {/*{showSender && !isConsecutive && isMe && <Box width="32px" height="32px" />}*/}
 
                 {/* Message Card */}
                 <Card
