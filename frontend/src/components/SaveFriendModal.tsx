@@ -1,4 +1,3 @@
-// web-app/src/components/AddFriendModal.tsx
 import { useState } from "react";
 import {
     Button,
@@ -7,90 +6,95 @@ import {
     Text,
     TextField,
     IconButton,
-    Box, Spinner,
+    Box,
 } from "@radix-ui/themes";
 import { motion } from "framer-motion";
-import { Plus, X } from "lucide-react";
-import { addFriend, isValidSuiAddress } from "../services/friendsStore.ts";
-import {useSuiMailMessenger} from "../hooks/useSuiMailMessenger.ts";
-import {useCurrentAccount} from "@mysten/dapp-kit";
+import {Edit, UserPlus, X} from "lucide-react";
+import {addFriend, editFriendAlias} from "../services/friendsStore.ts";
 
-export function AddFriendModal() {
-    const [address, setAddress] = useState("");
+interface SaveFriendModalProps {
+    friendAddress: string;
+    userAddress: string;
+    isFriend: boolean;
+}
+
+export function SaveFriendModal({ friendAddress, userAddress , isFriend}: SaveFriendModalProps) {
     const [alias, setAlias] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [error, setError] = useState("");
-    const [isCreating, setIsCreating] = useState(false);
-    const {createChannel} = useSuiMailMessenger()
-    const connectedAccount = useCurrentAccount()
 
-
-    const handleSave = async () => {
+    const handleSave = () => {
         setError("");
-
-        const trimmedAddress = address.trim();
         const trimmedAlias = alias.trim();
 
-        if (!trimmedAddress || !trimmedAlias) {
-            setError("Please fill out both fields");
+        if (!trimmedAlias) {
+            setError("Please enter an alias");
             return;
         }
 
-        if (!isValidSuiAddress(trimmedAddress)) {
-            setError("Invalid Sui address format (must be 0x + 64 hex chars)");
-            return;
-        }
-        setIsCreating(true);
         try {
-            await createChannel(
-                [address],
-            );
-            addFriend(connectedAccount!!.address, trimmedAddress, trimmedAlias)
+            addFriend(userAddress, friendAddress, trimmedAlias);
+            setIsOpen(false);
+            setAlias("");
+        } catch (e) {
+            console.error(e);
+            setError("Failed to save friend");
+        }
+    };
 
-        } catch (error) {
-            alert("Send failed: " + error);
-            console.log("from adding friend " + error);
-        } finally {
-            setIsCreating(false);
+    const handleEdit = () => {
+        setError("");
+        const trimmedAlias = alias.trim();
+
+        if (!trimmedAlias) {
+            setError("Please enter an alias");
+            return;
         }
 
-
-        // Reset and close
-        setIsOpen(false);
-        setAddress("");
-        setAlias("");
-        setError("");
+        try {
+            editFriendAlias(userAddress, friendAddress, trimmedAlias);
+            setIsOpen(false);
+            setAlias("");
+        } catch (e) {
+            console.error(e);
+            setError("Failed to save friend");
+        }
     };
 
     return (
         <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
-            {/* Trigger */}
+            {/* Trigger Button */}
             <Dialog.Trigger>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                        variant="soft"
-                        size="2"
-                        style={{
-                            background: "rgba(255, 255, 255, 0.15)",
-                            backdropFilter: "blur(10px)",
-                            border: "1px solid rgba(255, 255, 255, 0.2)",
-                            color: "white",
-                            fontWeight: 600,
-                        }}
-                    >
-                        {isCreating ? (
-                            <Spinner />
-                        ) : (
-                            <>
-                                <Plus size={16} style={{ marginRight: 6 }} />
-                                Add friend
-                            </>
-                        )}
-                    </Button>
+
+                    {isFriend ? (
+                        <Button
+                            size="1"
+                            variant="soft"
+                            color="teal"
+                            style={{ cursor: 'pointer' }}
+                        >
+                             Rename
+                             <Edit size={14} style={{ marginRight: 4 }} />
+                        </Button>
+
+                    ) :(
+                        <Button
+                            size="1"
+                            variant="soft"
+                            color="teal"
+                            style={{ cursor: 'pointer' }}
+                        >
+                             <UserPlus size={14} style={{ marginRight: 4 }} />
+                            "Save Friend"
+                        </Button>
+
+                        )
+                    }
                 </motion.div>
             </Dialog.Trigger>
 
-            {/* Content */}
+            {/* Modal Content */}
             <Dialog.Content
                 style={{
                     position: "fixed",
@@ -116,7 +120,7 @@ export function AddFriendModal() {
                         {/* Header */}
                         <Flex justify="between" align="center">
                             <Dialog.Title style={{ color: "#e0f2fe", fontWeight: 700 }}>
-                                Add New Friend
+                                Save Contact
                             </Dialog.Title>
                             <Dialog.Close>
                                 <IconButton size="1" variant="ghost" style={{ color: "#94a3b8" }}>
@@ -126,7 +130,7 @@ export function AddFriendModal() {
                         </Flex>
 
                         <Dialog.Description size="2" style={{ color: "#94a3b8" }}>
-                            Enter their Sui wallet address and a local alias.
+                            Save this address to your friends list for easy access.
                         </Dialog.Description>
 
                         {error && (
@@ -137,12 +141,34 @@ export function AddFriendModal() {
 
                         {/* Form Fields */}
                         <Flex direction="column" gap="4">
+                            {/* Read-only Address Field */}
                             <Box>
                                 <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
-                                    Alias
+                                    Wallet Address
                                 </Text>
                                 <TextField.Root
-                                    placeholder="e.g., Alice"
+                                    value={friendAddress}
+                                    readOnly
+                                    variant="soft"
+                                    color="gray"
+                                    style={{
+                                        background: "rgba(0, 0, 0, 0.2)",
+                                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                                        color: "#94a3b8",
+                                        fontFamily: "monospace",
+                                        opacity: 0.8,
+                                        cursor: "not-allowed"
+                                    }}
+                                />
+                            </Box>
+
+                            {/* Alias Input */}
+                            <Box>
+                                <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
+                                    Assign Alias
+                                </Text>
+                                <TextField.Root
+                                    placeholder="e.g., Bob form Work"
                                     value={alias}
                                     onChange={(e) => setAlias(e.target.value)}
                                     style={{
@@ -152,27 +178,10 @@ export function AddFriendModal() {
                                     }}
                                 />
                             </Box>
-
-                            <Box>
-                                <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
-                                    Sui Address
-                                </Text>
-                                <TextField.Root
-                                    placeholder="0x..."
-                                    value={address}
-                                    onChange={(e) => setAddress(e.target.value)}
-                                    style={{
-                                        background: "rgba(255, 255, 255, 0.1)",
-                                        border: "1px solid rgba(255, 255, 255, 0.2)",
-                                        color: "white",
-                                        fontFamily: "monospace",
-                                    }}
-                                />
-                            </Box>
                         </Flex>
 
                         {/* Buttons */}
-                        <Flex gap="3" mt="2" justify="end">
+                        <Flex gap="3" mt="4" justify="end">
                             <Dialog.Close>
                                 <Button
                                     variant="soft"
@@ -187,7 +196,7 @@ export function AddFriendModal() {
                             </Dialog.Close>
 
                             <Button
-                                onClick={handleSave}
+                                onClick={isFriend ? handleEdit : handleSave}
                                 size="2"
                                 style={{
                                     background: "linear-gradient(135deg, #3b82f6, #10b981)",
@@ -196,7 +205,7 @@ export function AddFriendModal() {
                                     boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
                                 }}
                             >
-                                {isCreating ? <Spinner /> : "Save Friend" }
+                                Save Friend
                             </Button>
                         </Flex>
                     </Flex>

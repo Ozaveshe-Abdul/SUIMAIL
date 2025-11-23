@@ -9,7 +9,7 @@ import { SessionKey } from "@mysten/seal";
 // Export these if needed elsewhere, but keeping them internal is cleaner
 const NETWORK = "testnet";
 const RPC_URL = "https://fullnode.testnet.sui.io:443";
-const MESSAGING_PACKAGE_ID = "0xc223298df5fc05e208d7b5709c8e2f4c2c00e11dbeb5de5804f0a927f475b06f";
+const MESSAGING_PACKAGE_ID = "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d";
 
 const SEAL_SERVERS = [
     { objectId: "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75", weight: 1 },
@@ -62,78 +62,6 @@ export function createMessagingClient(sessionKey: SessionKey) {
 
 // Export the package ID for use in the Hook's session creation
 export const APP_PACKAGE_ID = MESSAGING_PACKAGE_ID;
-/*// Seal server configurations for Testnet
-const SEAL_SERVERS_TESTNET = [
-    {
-        objectId: "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
-        weight: 1,
-    },
-    {
-        objectId: "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8",
-        weight: 1,
-    },
-];
-
-// Walrus storage configuration for Testnet
-const WALRUS_CONFIG_TESTNET = {
-    aggregator: "https://aggregator.walrus-testnet.walrus.space",
-    publisher: "https://publisher.walrus-testnet.walrus.space",
-    epochs: 1,
-};
-
-const MESSAGING_PACKAGE_ID = "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d";
-
-/!**
- * Create a messaging client with Seal encryption and Walrus storage
- *!/
-export function createMessagingClient(
-    network: "testnet" | "mainnet",
-    sessionKeypair: SessionKey,
-    // sessionTTLMinutes: number = 30
-) {
-    const rpcUrl =
-        network === "mainnet"
-            ? "https://fullnode.mainnet.sui.io:443"
-            : "https://fullnode.testnet.sui.io:443";
-
-    const sealServers = SEAL_SERVERS_TESTNET; // TODO: Add mainnet servers
-    const walrusConfig = WALRUS_CONFIG_TESTNET; // TODO: Add mainnet config
-
-    // Create base Sui client
-    const client = new SuiClient({ url: rpcUrl , mvr: {
-            overrides: {
-                packages: {
-                    // This tells the SDK exactly where to find the messaging contract
-                    '@local-pkg/sui-stack-messaging': MESSAGING_PACKAGE_ID,
-                },
-            },
-        },});
-
-    // Extend with Seal for encryption
-    const sealClient = client.$extend(
-        SealClient.asClientExtension({
-            serverConfigs: sealServers,
-        })
-    );
-
-    // Extend with Messaging SDK
-    const messagingClient = sealClient.$extend(
-        SuiStackMessagingClient.experimental_asClientExtension({
-            // @ts-ignore
-            // network: network,
-            walrusStorageConfig: walrusConfig,
-            sessionKey: sessionKeypair
-            // sessionKeyConfig: {
-            //     address: sessionKeypair.toSuiAddress(),
-            //     ttlMin: sessionTTLMinutes,
-            //     signer: sessionKeypair,
-            // },
-        })
-    );
-
-    return messagingClient;
-}*/
-
 /**
  * Messaging client instance type
  */

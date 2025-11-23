@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { loadFriendsList, type FriendsList } from "../services/friendsStore";
+import {Friend, getFriends,} from "../services/friendsStore";
 
-export function useFriends() {
+export function useFriends(address: string) {
     // Initialize state with current data from local storage
-    const [friends, setFriends] = useState<FriendsList>(loadFriendsList());
+    const [friends, setFriends] = useState<Friend[]>(getFriends(address));
 
     useEffect(() => {
         // Handler to reload data when the store updates
         const handleUpdate = () => {
-            setFriends(loadFriendsList());
+            setFriends(getFriends(address));
         };
 
         // Listen for the custom event dispatched by your store

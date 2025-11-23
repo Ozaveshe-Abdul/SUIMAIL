@@ -9,14 +9,19 @@ import { Theme } from "@radix-ui/themes";
 import App from "./App.tsx";
 import { networkConfig } from "./networkConfig.ts";
 import RegisterEnokiWallets from "./components/RegisterEnokiWallets.tsx";
+import {baseMessagingClient} from "./services/suiMessagingClient.ts";
 
 const queryClient = new QueryClient();
+
+const createClient = () => {
+    return baseMessagingClient;
+};
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Theme appearance="dark">
       <QueryClientProvider client={queryClient}>
-        <SuiClientProvider networks={networkConfig} defaultNetwork="testnet">
+        <SuiClientProvider networks={networkConfig} defaultNetwork="testnet" createClient={createClient}>
             <RegisterEnokiWallets />
           <WalletProvider autoConnect>
             <App />
@@ -26,3 +31,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </Theme>
   </React.StrictMode>,
 );
+
+

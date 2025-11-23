@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useCurrentAccount, useDisconnectWallet } from '@mysten/dapp-kit';
 import {Button} from "@radix-ui/themes";
-import {LucideBowArrow, Wallet, Plus} from "lucide-react";
+import {Wallet} from "lucide-react";
 
 export function LogoutButton() {
     const account = useCurrentAccount();

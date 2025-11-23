@@ -24,7 +24,4 @@ export interface StoredMessage extends ChatEnvelopFields {
     decryptedPayload?: MessagePayload;
 }
 
-export interface FriendsList {
-    [address: string]: string; // address -> alias
-}
 

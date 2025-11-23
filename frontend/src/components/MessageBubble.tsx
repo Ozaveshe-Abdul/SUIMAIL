@@ -1,6 +1,6 @@
 // web-app/src/components/MessageBubble.tsx
 
-import { Box, Card, Text, IconButton, Flex } from "@radix-ui/themes";
+import { Box, Card, Text, IconButton, Flex, Avatar } from "@radix-ui/themes";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { Trash2, Download, FileText } from "lucide-react";
 import { motion } from "framer-motion";
@@ -9,12 +9,23 @@ import type { StoredMessage } from "../utilities/types.ts";
 interface MessageBubbleProps {
     message: StoredMessage;
     onDelete: () => void;
+    showSender?: boolean;        // ← NEW: show name + avatar
+    senderAlias: string | null;        // ← Optional: display name (from friends list)
+    isConsecutive?: boolean;     // ← For message grouping (same sender = no avatar/name)
 }
 
-export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
+export function MessageBubble({
+                                  message,
+                                  onDelete,
+                                  showSender = false,
+                                  senderAlias,
+                                  isConsecutive = false,
+                              }: MessageBubbleProps) {
     const account = useCurrentAccount();
     const isMe = message.sender === account?.address;
-    const canDelete = !isMe; // Only receiver can delete for rebate
+
+    // Only allow deletion if it's NOT your message (rebate logic)
+    const canDelete = !isMe;
 
     const payload = message.decryptedPayload;
     const text = payload?.text || "[Decryption Failed]";
@@ -43,10 +54,43 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
             style={{
                 alignSelf: isMe ? "flex-end" : "flex-start",
                 maxWidth: "75%",
-                marginBottom: "8px",
+                marginBottom: isConsecutive ? "4px" : "12px",
             }}
         >
+            {/* Sender Name (only in group + not consecutive) */}
+            {showSender && !isConsecutive && !isMe && (
+                <Text
+                    size="1"
+                    weight="medium"
+                    style={{
+                        color: "#94a3b8",
+                        marginLeft: "48px",
+                        marginBottom: "2px",
+                        opacity: 0.9,
+                    }}
+                >
+                    {senderAlias || message.sender.slice(0, 8) + "..."}
+                </Text>
+            )}
+
             <Flex direction={isMe ? "row-reverse" : "row"} gap="2" align="end">
+                {/* Avatar (only in group, not consecutive, not me) */}
+                {showSender && !isConsecutive && !isMe && (
+                    <Avatar
+                        size="2"
+                        fallback={ senderAlias?.slice(0, 2) || message.sender.slice(2, 4) }
+                        style={{
+                            background: "linear-gradient(135deg, #8b5cf6, #ec4899)",
+                            color: "white",
+                            fontWeight: "bold",
+                        }}
+                    />
+                )}
+
+                {/* Optional spacer when avatar is hidden */}
+                {/*{showSender && !isConsecutive && isMe && <Box width="32px" height="32px" />}*/}
+
+                {/* Message Card */}
                 <Card
                     style={{
                         background: isMe
@@ -61,24 +105,26 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                         boxShadow: isMe
                             ? "0 4px 12px rgba(59, 130, 246, 0.3)"
                             : "0 2px 8px rgba(0, 0, 0, 0.1)",
+                        borderBottomLeftRadius: showSender && !isConsecutive && !isMe ? "4px" : "16px",
+                        borderTopLeftRadius: showSender && !isConsecutive && !isMe ? "16px" : "16px",
                     }}
                 >
                     <Box>
                         {text && (
-                            <Text size="2" style={{ lineHeight: 1.4 }}>
+                            <Text size="2" style={{ lineHeight: 1.5 }}>
                                 {text}
                             </Text>
                         )}
 
                         {file && (
-                            <Box mt={text ? "2" : "0"}>
+                            <Box mt={text ? "3" : "0"}>
                                 {file.type.startsWith("image/") ? (
                                     <Box
                                         style={{
                                             borderRadius: "12px",
                                             overflow: "hidden",
-                                            maxWidth: 240,
-                                            marginTop: "4px",
+                                            maxWidth: 260,
+                                            marginTop: "6px",
                                         }}
                                     >
                                         <img
@@ -91,30 +137,24 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                                                 borderRadius: "12px",
                                             }}
                                         />
-                                        <Text
-                                            size="1"
-                                            style={{
-                                                marginTop: "4px",
-                                                opacity: 0.8,
-                                            }}
-                                        >
+                                        <Text size="1" style={{ marginTop: "4px", opacity: 0.8 }}>
                                             {file.name}
                                         </Text>
                                     </Box>
                                 ) : (
                                     <Flex
                                         align="center"
-                                        gap="2"
-                                        p="2"
+                                        gap="3"
+                                        p="3"
                                         style={{
                                             background: "rgba(255, 255, 255, 0.1)",
-                                            borderRadius: "8px",
+                                            borderRadius: "10px",
                                             border: "1px dashed rgba(255, 255, 255, 0.3)",
                                             cursor: "pointer",
                                         }}
                                         onClick={handleFileDownload}
                                     >
-                                        <FileText size={20} style={{ color: "#94a3b8" }} />
+                                        <FileText size={22} style={{ color: "#94a3b8" }} />
                                         <Box>
                                             <Text size="2" style={{ color: "#e0f2fe" }}>
                                                 {file.name}
@@ -123,10 +163,7 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                                                 {((file.data.length * 0.75) / 1024).toFixed(1)} KB
                                             </Text>
                                         </Box>
-                                        <Download
-                                            size={16}
-                                            style={{ color: "#10b981", marginLeft: "auto" }}
-                                        />
+                                        <Download size={18} style={{ color: "#10b981", marginLeft: "auto" }} />
                                     </Flex>
                                 )}
                             </Box>
@@ -134,6 +171,7 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                     </Box>
                 </Card>
 
+                {/* Delete Button (only for others) */}
                 {canDelete && (
                     <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                         <IconButton
@@ -154,15 +192,16 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                     </motion.div>
                 )}
 
+                {/* Timestamp */}
                 <Text
                     size="1"
-                    color="gray"
                     style={{
                         fontSize: "0.7rem",
+                        color: "#64748b",
                         opacity: 0.7,
                         minWidth: "50px",
                         textAlign: isMe ? "right" : "left",
-                        marginBottom: "2px",
+                        marginTop: "2px",
                     }}
                 >
                     {timestamp}

@@ -1,70 +1,73 @@
-// web-app/src/components/AddFriendModal.tsx
 import { useState } from "react";
 import {
     Button,
     Dialog,
     Flex,
     Text,
+    TextArea,
     TextField,
     IconButton,
-    Box, Spinner,
+    Box,
+    Spinner,
 } from "@radix-ui/themes";
 import { motion } from "framer-motion";
-import { Plus, X } from "lucide-react";
-import { addFriend, isValidSuiAddress } from "../services/friendsStore.ts";
-import {useSuiMailMessenger} from "../hooks/useSuiMailMessenger.ts";
+import { Users, X } from "lucide-react";
+import {addFriend, isValidSuiAddress} from "../services/friendsStore.ts";
+import { useSuiMailMessenger } from "../hooks/useSuiMailMessenger.ts";
 import {useCurrentAccount} from "@mysten/dapp-kit";
 
-export function AddFriendModal() {
-    const [address, setAddress] = useState("");
-    const [alias, setAlias] = useState("");
+export function CreateGroupModal() {
+    const [addresses, setAddresses] = useState("");
+    const [groupAlias, setGroupAlias] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [error, setError] = useState("");
     const [isCreating, setIsCreating] = useState(false);
-    const {createChannel} = useSuiMailMessenger()
+    const { createChannel } = useSuiMailMessenger();
     const connectedAccount = useCurrentAccount()
-
 
     const handleSave = async () => {
         setError("");
+        const memberList = addresses
+            .split(",")
+            .map((a) => a.trim())
+            .filter((a) => a.length > 0);
 
-        const trimmedAddress = address.trim();
-        const trimmedAlias = alias.trim();
-
-        if (!trimmedAddress || !trimmedAlias) {
-            setError("Please fill out both fields");
+        if (memberList.length === 0) {
+            setError("Please enter at least one address");
             return;
         }
 
-        if (!isValidSuiAddress(trimmedAddress)) {
-            setError("Invalid Sui address format (must be 0x + 64 hex chars)");
+        const invalid = memberList.find((addr) => !isValidSuiAddress(addr));
+        if (invalid) {
+            setError(`Invalid address: ${invalid}`);
             return;
         }
+
+        if (!groupAlias.trim()) {
+            setError("Please enter a group name");
+            return;
+        }
+
         setIsCreating(true);
         try {
-            await createChannel(
-                [address],
-            );
-            addFriend(connectedAccount!!.address, trimmedAddress, trimmedAlias)
-
-        } catch (error) {
-            alert("Send failed: " + error);
-            console.log("from adding friend " + error);
+            const id = await createChannel(memberList);
+            // TODO: Save groupAlias + memberList locally or on-chain
+            addFriend(connectedAccount!!.address, id.channelId, groupAlias)
+            setIsOpen(false);
+            setAddresses("");
+            setGroupAlias("");
+            setError("");
+        } catch (error: any) {
+            alert("Group creation failed: " + error.message);
+            console.error(error);
         } finally {
             setIsCreating(false);
         }
-
-
-        // Reset and close
-        setIsOpen(false);
-        setAddress("");
-        setAlias("");
-        setError("");
     };
 
     return (
         <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
-            {/* Trigger */}
+            {/* Trigger Button */}
             <Dialog.Trigger>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button
@@ -82,22 +85,22 @@ export function AddFriendModal() {
                             <Spinner />
                         ) : (
                             <>
-                                <Plus size={16} style={{ marginRight: 6 }} />
-                                Add friend
+                                <Users size={16} style={{ marginRight: 6 }} />
+                                Create Group
                             </>
                         )}
                     </Button>
                 </motion.div>
             </Dialog.Trigger>
 
-            {/* Content */}
+            {/* Modal Content */}
             <Dialog.Content
                 style={{
                     position: "fixed",
                     top: "50%",
                     left: "50%",
                     transform: "translate(-50%, -50%)",
-                    maxWidth: 480,
+                    maxWidth: 520,
                     width: "90vw",
                     background: "rgba(255, 255, 255, 0.12)",
                     backdropFilter: "blur(16px)",
@@ -116,7 +119,7 @@ export function AddFriendModal() {
                         {/* Header */}
                         <Flex justify="between" align="center">
                             <Dialog.Title style={{ color: "#e0f2fe", fontWeight: 700 }}>
-                                Add New Friend
+                                Create New Group
                             </Dialog.Title>
                             <Dialog.Close>
                                 <IconButton size="1" variant="ghost" style={{ color: "#94a3b8" }}>
@@ -126,7 +129,7 @@ export function AddFriendModal() {
                         </Flex>
 
                         <Dialog.Description size="2" style={{ color: "#94a3b8" }}>
-                            Enter their Sui wallet address and a local alias.
+                            Add multiple Sui addresses (comma-separated) and give your group a name.
                         </Dialog.Description>
 
                         {error && (
@@ -139,12 +142,12 @@ export function AddFriendModal() {
                         <Flex direction="column" gap="4">
                             <Box>
                                 <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
-                                    Alias
+                                    Group Name
                                 </Text>
                                 <TextField.Root
-                                    placeholder="e.g., Alice"
-                                    value={alias}
-                                    onChange={(e) => setAlias(e.target.value)}
+                                    placeholder="e.g., Crypto Bros"
+                                    value={groupAlias}
+                                    onChange={(e) => setGroupAlias(e.target.value)}
                                     style={{
                                         background: "rgba(255, 255, 255, 0.1)",
                                         border: "1px solid rgba(255, 255, 255, 0.2)",
@@ -155,23 +158,25 @@ export function AddFriendModal() {
 
                             <Box>
                                 <Text as="div" size="2" weight="bold" mb="1" style={{ color: "#e0f2fe" }}>
-                                    Sui Address
+                                    Member Addresses (comma separated)
                                 </Text>
-                                <TextField.Root
-                                    placeholder="0x..."
-                                    value={address}
-                                    onChange={(e) => setAddress(e.target.value)}
+                                <TextArea
+                                    placeholder="0x1234..., 0x5678..., 0x9abc..."
+                                    value={addresses}
+                                    onChange={(e) => setAddresses(e.target.value)}
                                     style={{
+                                        height: 120,
                                         background: "rgba(255, 255, 255, 0.1)",
                                         border: "1px solid rgba(255, 255, 255, 0.2)",
                                         color: "white",
                                         fontFamily: "monospace",
+                                        resize: "none",
                                     }}
                                 />
                             </Box>
                         </Flex>
 
-                        {/* Buttons */}
+                        {/* Action Buttons */}
                         <Flex gap="3" mt="2" justify="end">
                             <Dialog.Close>
                                 <Button
@@ -188,15 +193,16 @@ export function AddFriendModal() {
 
                             <Button
                                 onClick={handleSave}
+                                disabled={isCreating}
                                 size="2"
                                 style={{
-                                    background: "linear-gradient(135deg, #3b82f6, #10b981)",
+                                    background: "linear-gradient(135deg, #8b5cf6, #ec4899)",
                                     color: "white",
                                     fontWeight: 600,
-                                    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+                                    boxShadow: "0 4px 12px rgba(139, 92, 246, 0.4)",
                                 }}
                             >
-                                {isCreating ? <Spinner /> : "Save Friend" }
+                                {isCreating ? <Spinner /> : "Create Group"}
                             </Button>
                         </Flex>
                     </Flex>
